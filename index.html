@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Smart OCR Lens</title>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -14,33 +14,21 @@
 
 <style>
 :root{
-  --glass: rgba(255,255,255,.6);
-  --blur: blur(16px);
   --primary:#2563eb;
+  --glass:rgba(255,255,255,.6);
 }
 *{box-sizing:border-box}
 body{
   margin:0;
   padding:12px;
   font-family:system-ui;
-  background:
-    radial-gradient(circle at top,#dbeafe,#eff6ff 60%);
+  background:radial-gradient(circle at top,#dbeafe,#eff6ff 60%);
 }
-.container{
-  max-width:720px;
-  margin:auto;
-}
-header{
-  text-align:center;
-  margin-bottom:10px;
-}
-header h1{
-  margin:0;
-  font-weight:800;
-}
+.container{max-width:720px;margin:auto}
+header{text-align:center}
 .glass{
   background:var(--glass);
-  backdrop-filter:var(--blur);
+  backdrop-filter:blur(16px);
   border-radius:18px;
   padding:12px;
   margin-bottom:12px;
@@ -52,10 +40,7 @@ header h1{
   overflow:hidden;
   background:#000;
 }
-#image{
-  width:100%;
-  display:block;
-}
+#image{width:100%;display:block}
 #selection{
   position:absolute;
   border:2px solid #22d3ee;
@@ -63,59 +48,29 @@ header h1{
   display:none;
   border-radius:6px;
 }
-input[type=file]{
-  width:100%;
-  padding:12px;
-  border-radius:12px;
-}
-button{
+input,button{
   width:100%;
   padding:14px;
-  margin-top:8px;
-  border:none;
   border-radius:14px;
   font-size:16px;
-  font-weight:700;
+  border:none;
+}
+button{
   background:var(--primary);
-  color:#fff;
-  cursor:pointer;
-  transition:.15s;
+  color:white;
+  font-weight:700;
 }
-button:active{transform:scale(.97)}
-.actions{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:8px;
-}
-#status{
-  text-align:center;
-  font-size:14px;
-  margin-top:6px;
-}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#status{text-align:center;font-size:14px}
 textarea{
   width:100%;
   height:90px;
   border-radius:12px;
   padding:10px;
-  border:1px solid #ddd;
 }
-#editor{
-  height:240px;
-  border-radius:12px;
-}
-footer{
-  text-align:center;
-  font-size:12px;
-  opacity:.6;
-}
-.loading{
-  animation:pulse 1s infinite;
-}
-@keyframes pulse{
-  0%{opacity:.4}
-  50%{opacity:1}
-  100%{opacity:.4}
-}
+#editor{height:240px;border-radius:12px}
+.loading{animation:pulse 1s infinite}
+@keyframes pulse{0%{opacity:.4}50%{opacity:1}100%{opacity:.4}}
 </style>
 </head>
 
@@ -124,7 +79,7 @@ footer{
 
 <header>
 <h1>✨ Smart OCR Lens</h1>
-<p>Scan • Select • Edit • Export</p>
+<p>Scan • Blok • Edit • Download</p>
 </header>
 
 <div class="glass">
@@ -139,7 +94,7 @@ footer{
 </div>
 
 <div class="glass">
-<button onclick="scanArea()">🔍 Scan Selected Area</button>
+<button onclick="scanArea()">🔍 Scan Area</button>
 <div class="actions">
 <button onclick="exportWord()">⬇️ Word</button>
 <button onclick="exportPDF()">⬇️ PDF</button>
@@ -154,8 +109,6 @@ footer{
 <div class="glass">
 <div id="editor"></div>
 </div>
-
-<footer>Smart OCR Lens • UI Boosted</footer>
 
 </div>
 
@@ -192,10 +145,6 @@ container.onmousedown=container.ontouchstart=e=>{
   const p=pos(e);
   startX=p.x;startY=p.y;
   selection.style.display="block";
-  selection.style.left=startX+"px";
-  selection.style.top=startY+"px";
-  selection.style.width=0;
-  selection.style.height=0;
 };
 
 container.onmousemove=container.ontouchmove=e=>{
@@ -211,7 +160,7 @@ container.onmouseup=container.ontouchend=()=>selecting=false;
 
 async function scanArea(){
   if(selection.offsetWidth<10)return alert("Blok area teks dulu");
-  statusText.innerText="Scanning…";
+  statusText.innerText="🔧 Memperbaiki gambar…";
   statusText.classList.add("loading");
 
   const sx=img.naturalWidth/img.clientWidth;
@@ -222,16 +171,40 @@ async function scanArea(){
   const h=selection.offsetHeight*sy;
 
   const c=document.createElement("canvas");
-  c.width=w;c.height=h;
-  c.getContext("2d").drawImage(img,x,y,w,h,0,0,w,h);
+  const scale=2;
+  c.width=w*scale;
+  c.height=h*scale;
+  const ctx=c.getContext("2d");
+  ctx.drawImage(img,x,y,w,h,0,0,c.width,c.height);
+
+  let imgData=ctx.getImageData(0,0,c.width,c.height);
+  let d=imgData.data;
+  let min=255,max=0;
+
+  for(let i=0;i<d.length;i+=4){
+    let g=d[i]*0.3+d[i+1]*0.59+d[i+2]*0.11;
+    d[i]=d[i+1]=d[i+2]=g;
+    min=Math.min(min,g);
+    max=Math.max(max,g);
+  }
+
+  let range=max-min||1;
+  for(let i=0;i<d.length;i+=4){
+    let v=((d[i]-min)/range)*255;
+    v=v>140?255:0;
+    d[i]=d[i+1]=d[i+2]=v;
+  }
+  ctx.putImageData(imgData,0,0);
+
+  statusText.innerText="🔍 OCR berjalan…";
 
   const {data}=await worker.recognize(c);
-  const text=data.text.trim();
+  const text=data.text.replace(/\n{2,}/g,"\n").trim();
 
   ocrResult.value+=text+"\n";
   quill.insertText(quill.getLength(),text+"\n");
 
-  statusText.innerText="Scan selesai ✅";
+  statusText.innerText="✅ Selesai";
   statusText.classList.remove("loading");
 }
 
