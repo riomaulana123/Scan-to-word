@@ -2,104 +2,119 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Smart OCR Lens</title>
 
-<!-- OCR -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-
-<!-- Editor -->
 <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
-
-<!-- Export -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
-* { box-sizing:border-box }
-body {
-  font-family: system-ui, Arial;
-  background: linear-gradient(180deg,#f5f7fa,#e4ecf5);
+:root{
+  --glass: rgba(255,255,255,.6);
+  --blur: blur(16px);
+  --primary:#2563eb;
+}
+*{box-sizing:border-box}
+body{
   margin:0;
   padding:12px;
+  font-family:system-ui;
+  background:
+    radial-gradient(circle at top,#dbeafe,#eff6ff 60%);
 }
-.container {
-  max-width: 720px;
+.container{
+  max-width:720px;
   margin:auto;
 }
-h1 {
+header{
   text-align:center;
   margin-bottom:10px;
 }
-.card {
-  background:#fff;
-  border-radius:14px;
+header h1{
+  margin:0;
+  font-weight:800;
+}
+.glass{
+  background:var(--glass);
+  backdrop-filter:var(--blur);
+  border-radius:18px;
   padding:12px;
   margin-bottom:12px;
-  box-shadow:0 10px 25px rgba(0,0,0,.08);
+  box-shadow:0 20px 40px rgba(0,0,0,.1);
 }
-#imageContainer {
+#imageContainer{
   position:relative;
-  border-radius:12px;
+  border-radius:16px;
   overflow:hidden;
   background:#000;
-  touch-action:none;
 }
-#image {
+#image{
   width:100%;
   display:block;
 }
-#selection {
+#selection{
   position:absolute;
-  border:2px solid #00e5ff;
-  background:rgba(0,229,255,.25);
+  border:2px solid #22d3ee;
+  background:rgba(34,211,238,.25);
   display:none;
+  border-radius:6px;
 }
-input[type=file] {
-  width:100%;
-  padding:10px;
-}
-button {
+input[type=file]{
   width:100%;
   padding:12px;
+  border-radius:12px;
+}
+button{
+  width:100%;
+  padding:14px;
   margin-top:8px;
   border:none;
-  border-radius:10px;
+  border-radius:14px;
   font-size:16px;
-  font-weight:600;
+  font-weight:700;
+  background:var(--primary);
+  color:#fff;
   cursor:pointer;
+  transition:.15s;
 }
-.scan { background:#007bff; color:#fff }
-.word { background:#28a745; color:#fff }
-.pdf  { background:#dc3545; color:#fff }
-button:active { transform:scale(.98) }
-
-#status {
+button:active{transform:scale(.97)}
+.actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+}
+#status{
   text-align:center;
   font-size:14px;
   margin-top:6px;
-  color:#555;
 }
-textarea {
+textarea{
   width:100%;
   height:90px;
-  margin-top:8px;
+  border-radius:12px;
   padding:10px;
-  border-radius:10px;
   border:1px solid #ddd;
 }
-#editor {
-  height:220px;
-  background:#fff;
-  border-radius:10px;
+#editor{
+  height:240px;
+  border-radius:12px;
 }
-.footer {
+footer{
   text-align:center;
   font-size:12px;
-  color:#888;
-  margin-top:10px;
+  opacity:.6;
+}
+.loading{
+  animation:pulse 1s infinite;
+}
+@keyframes pulse{
+  0%{opacity:.4}
+  50%{opacity:1}
+  100%{opacity:.4}
 }
 </style>
 </head>
@@ -107,100 +122,97 @@ textarea {
 <body>
 <div class="container">
 
-<h1>📸 Smart OCR Lens</h1>
+<header>
+<h1>✨ Smart OCR Lens</h1>
+<p>Scan • Select • Edit • Export</p>
+</header>
 
-<div class="card">
-  <input type="file" accept="image/*" id="imageInput">
+<div class="glass">
+<input type="file" accept="image/*" id="imageInput">
 </div>
 
-<div class="card">
-  <div id="imageContainer">
-    <img id="image">
-    <div id="selection"></div>
-  </div>
+<div class="glass">
+<div id="imageContainer">
+<img id="image">
+<div id="selection"></div>
+</div>
 </div>
 
-<div class="card">
-  <button class="scan" onclick="scanArea()">🔍 Scan Area</button>
-  <button class="word" onclick="exportWord()">⬇️ Download Word</button>
-  <button class="pdf" onclick="exportPDF()">⬇️ Download PDF</button>
-  <div id="status">⏳ Menyiapkan OCR engine…</div>
+<div class="glass">
+<button onclick="scanArea()">🔍 Scan Selected Area</button>
+<div class="actions">
+<button onclick="exportWord()">⬇️ Word</button>
+<button onclick="exportPDF()">⬇️ PDF</button>
+</div>
+<div id="status">Menyiapkan OCR…</div>
 </div>
 
-<div class="card">
-  <textarea id="ocrResult" placeholder="Hasil teks mentah (opsional)..."></textarea>
+<div class="glass">
+<textarea id="ocrResult" placeholder="Teks mentah (opsional)"></textarea>
 </div>
 
-<div class="card">
-  <div id="editor"></div>
+<div class="glass">
+<div id="editor"></div>
 </div>
 
-<div class="footer">
-  Smart OCR Lens • Scan → Edit → Download
-</div>
+<footer>Smart OCR Lens • UI Boosted</footer>
 
 </div>
 
 <script>
-const img = document.getElementById("image");
-const container = document.getElementById("imageContainer");
-const selection = document.getElementById("selection");
-const statusText = document.getElementById("status");
-const ocrResult = document.getElementById("ocrResult");
-const quill = new Quill('#editor', { theme:'snow' });
+const img=document.getElementById("image");
+const container=document.getElementById("imageContainer");
+const selection=document.getElementById("selection");
+const statusText=document.getElementById("status");
+const ocrResult=document.getElementById("ocrResult");
+const quill=new Quill('#editor',{theme:'snow'});
 
 let startX=0,startY=0,selecting=false;
 let worker;
 
-// Init OCR once
 (async()=>{
-  worker = await Tesseract.createWorker();
+  worker=await Tesseract.createWorker();
   await worker.loadLanguage("ind+eng");
   await worker.initialize("ind+eng");
-  statusText.innerText="✅ OCR siap digunakan";
+  statusText.innerText="OCR siap 🚀";
 })();
 
-imageInput.onchange = e => {
-  img.src = URL.createObjectURL(e.target.files[0]);
+imageInput.onchange=e=>{
+  img.src=URL.createObjectURL(e.target.files[0]);
 };
 
-function getPos(e){
+function pos(e){
   const r=container.getBoundingClientRect();
   const p=e.touches?e.touches[0]:e;
-  return {x:p.clientX-r.left,y:p.clientY-r.top};
+  return{x:p.clientX-r.left,y:p.clientY-r.top};
 }
 
-container.addEventListener("touchstart",start);
-container.addEventListener("mousedown",start);
-function start(e){
-  e.preventDefault();
+container.onmousedown=container.ontouchstart=e=>{
   selecting=true;
-  const p=getPos(e);
+  const p=pos(e);
   startX=p.x;startY=p.y;
   selection.style.display="block";
   selection.style.left=startX+"px";
   selection.style.top=startY+"px";
   selection.style.width=0;
   selection.style.height=0;
-}
+};
 
-container.addEventListener("touchmove",move);
-container.addEventListener("mousemove",move);
-function move(e){
+container.onmousemove=container.ontouchmove=e=>{
   if(!selecting)return;
-  const p=getPos(e);
+  const p=pos(e);
   selection.style.left=Math.min(startX,p.x)+"px";
   selection.style.top=Math.min(startY,p.y)+"px";
   selection.style.width=Math.abs(p.x-startX)+"px";
   selection.style.height=Math.abs(p.y-startY)+"px";
-}
+};
 
-container.addEventListener("touchend",()=>selecting=false);
-container.addEventListener("mouseup",()=>selecting=false);
+container.onmouseup=container.ontouchend=()=>selecting=false;
 
 async function scanArea(){
-  if(selection.offsetWidth<10) return alert("Blok area teks dulu");
-  statusText.innerText="⏳ Scan area…";
+  if(selection.offsetWidth<10)return alert("Blok area teks dulu");
+  statusText.innerText="Scanning…";
+  statusText.classList.add("loading");
 
   const sx=img.naturalWidth/img.clientWidth;
   const sy=img.naturalHeight/img.clientHeight;
@@ -213,34 +225,31 @@ async function scanArea(){
   c.width=w;c.height=h;
   c.getContext("2d").drawImage(img,x,y,w,h,0,0,w,h);
 
-  const { data } = await worker.recognize(c);
+  const {data}=await worker.recognize(c);
   const text=data.text.trim();
 
   ocrResult.value+=text+"\n";
   quill.insertText(quill.getLength(),text+"\n");
-  statusText.innerText="✅ Scan selesai";
+
+  statusText.innerText="Scan selesai ✅";
+  statusText.classList.remove("loading");
 }
 
 function exportWord(){
   const text=quill.getText().trim();
   if(!text)return alert("Teks kosong");
-  const paras=text.split("\n").filter(p=>p.trim());
   const doc=new docx.Document({
-    sections:[{children:paras.map(p=>new docx.Paragraph({
-      spacing:{after:200},
-      children:[new docx.TextRun({text:p,font:"Times New Roman",size:24})]
-    }))}]
+    sections:[{children:text.split("\n").map(p=>new docx.Paragraph(p))}]
   });
   docx.Packer.toBlob(doc).then(b=>saveAs(b,"hasil-ocr.docx"));
 }
 
 function exportPDF(){
-  const { jsPDF }=window.jspdf;
+  const {jsPDF}=window.jspdf;
   const text=quill.getText().trim();
   if(!text)return alert("Teks kosong");
   const pdf=new jsPDF();
-  const lines=pdf.splitTextToSize(text,180);
-  pdf.text(lines,10,10);
+  pdf.text(pdf.splitTextToSize(text,180),10,10);
   pdf.save("hasil-ocr.pdf");
 }
 </script>
