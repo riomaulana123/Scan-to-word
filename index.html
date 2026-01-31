@@ -2,139 +2,126 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Scan Foto ke Teks Cepat</title>
-
+<title>Scan & Pilih Teks (Lens-like)</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <style>
 body {
   font-family: Arial, sans-serif;
   background: #f4f4f4;
-  padding: 15px;
+  padding: 10px;
 }
 
 h2 {
   text-align: center;
 }
 
-input, button {
+#container {
+  position: relative;
   width: 100%;
-  padding: 10px;
-  margin-top: 10px;
-  font-size: 16px;
 }
 
-button {
-  background: #2196f3;
-  color: #fff;
-  border: none;
-  border-radius: 5px;
+#image {
+  width: 100%;
+  display: block;
 }
 
-img {
-  max-width: 100%;
-  margin-top: 10px;
-  border: 1px solid #ccc;
+.word {
+  position: absolute;
+  border: 1px solid rgba(0, 255, 0, 0.4);
+  cursor: pointer;
+}
+
+.word:hover {
+  background: rgba(0, 255, 0, 0.3);
 }
 
 textarea {
   width: 100%;
-  height: 300px;
+  height: 200px;
   margin-top: 10px;
   padding: 10px;
-  font-size: 14px;
+}
+
+button, input {
+  width: 100%;
+  padding: 10px;
+  margin-top: 10px;
 }
 
 #status {
-  margin-top: 10px;
   font-size: 14px;
-  color: green;
+  margin-top: 8px;
 }
 </style>
 </head>
 
 <body>
 
-<h2>📸 Scan Foto Jadi Teks</h2>
+<h2>📸 Scan & Pilih Teks</h2>
 
-<input type="file" id="imageInput" accept="image/*">
-
-<img id="preview">
-
-<button onclick="startOCR()">Scan Sekarang</button>
+<input type="file" id="upload" accept="image/*">
+<button onclick="scan()">Scan Sekali</button>
 
 <p id="status"></p>
 
-<textarea id="output" placeholder="Hasil teks akan muncul di sini..."></textarea>
+<div id="container">
+  <img id="image">
+</div>
+
+<textarea id="result" placeholder="Teks hasil pilihan akan muncul di sini..."></textarea>
 
 <script>
-const imageInput = document.getElementById("imageInput");
-const preview = document.getElementById("preview");
-const output = document.getElementById("output");
+const upload = document.getElementById("upload");
+const img = document.getElementById("image");
+const container = document.getElementById("container");
+const result = document.getElementById("result");
 const statusText = document.getElementById("status");
 
-imageInput.addEventListener("change", e => {
-  const file = e.target.files[0];
-  if (file) {
-    preview.src = URL.createObjectURL(file);
-  }
-});
+upload.onchange = e => {
+  img.src = URL.createObjectURL(e.target.files[0]);
+};
 
-// =====================
-// RESIZE + PREPROCESS
-// =====================
-function preprocessImage(img) {
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-
-  const maxWidth = 1600;
-  const scale = Math.min(1, maxWidth / img.naturalWidth);
-
-  canvas.width = img.naturalWidth * scale;
-  canvas.height = img.naturalHeight * scale;
-
-  ctx.filter = "grayscale(100%) contrast(150%)";
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-  return canvas;
-}
-
-// =====================
-// OCR UTAMA
-// =====================
-async function startOCR() {
-  if (!preview.src) {
+async function scan() {
+  if (!img.src) {
     alert("Pilih gambar dulu");
     return;
   }
 
-  statusText.innerText = "⏳ Memulai scan...";
-  output.value = "";
+  statusText.innerText = "⏳ Scan pertama (sekali saja)...";
 
-  const canvas = preprocessImage(preview);
-
-  const worker = await Tesseract.createWorker({
-    logger: m => {
-      if (m.status === "recognizing text") {
-        statusText.innerText =
-          "⏳ Membaca teks: " + Math.round(m.progress * 100) + "%";
-      }
-    }
-  });
-
+  const worker = await Tesseract.createWorker();
   await worker.loadLanguage("ind+eng");
   await worker.initialize("ind+eng");
 
-  await worker.setParameters({
-    tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
-    preserve_interword_spaces: "1"
+  const { data } = await worker.recognize(img);
+
+  container.querySelectorAll(".word").forEach(e => e.remove());
+
+  const imgRect = img.getBoundingClientRect();
+
+  data.words.forEach(word => {
+    if (!word.text.trim()) return;
+
+    const div = document.createElement("div");
+    div.className = "word";
+
+    const scaleX = img.clientWidth / img.naturalWidth;
+    const scaleY = img.clientHeight / img.naturalHeight;
+
+    div.style.left = word.bbox.x0 * scaleX + "px";
+    div.style.top = word.bbox.y0 * scaleY + "px";
+    div.style.width = (word.bbox.x1 - word.bbox.x0) * scaleX + "px";
+    div.style.height = (word.bbox.y1 - word.bbox.y0) * scaleY + "px";
+
+    div.onclick = () => {
+      result.value += word.text + " ";
+    };
+
+    container.appendChild(div);
   });
 
-  const { data } = await worker.recognize(canvas);
-
-  output.value = data.text.trim();
-  statusText.innerText = "✅ Scan selesai (cepat & stabil)";
-
+  statusText.innerText = "✅ Scan selesai — tap teks untuk mengambil";
   await worker.terminate();
 }
 </script>
