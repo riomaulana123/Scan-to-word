@@ -2,17 +2,73 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <title>Scan Foto ke Word</title>
+  <title>Scan Foto ke Teks</title>
+
+  <!-- Tesseract OCR -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 15px;
+    }
+    textarea {
+      width: 100%;
+      height: 200px;
+      margin-top: 10px;
+    }
+    button {
+      padding: 10px;
+      margin-top: 10px;
+    }
+  </style>
 </head>
 <body>
-  <h1>Scan Foto ke Teks</h1>
-  <p>Aplikasi OCR versi web</p>
 
-  <input type="file" accept="image/*">
+  <h2>📸 Scan Foto ke Teks</h2>
+
+  <input type="file" id="imageInput" accept="image/*">
   <br><br>
-  <button>Scan</button>
 
-  <p>Jika halaman ini muncul, berarti web kamu SUDAH HIDUP ✅</p>
+  <button onclick="scanImage()">Scan Sekarang</button>
+
+  <p id="status"></p>
+
+  <textarea id="result" placeholder="Hasil teks akan muncul di sini..."></textarea>
+
+  <script>
+    function scanImage() {
+      const imageInput = document.getElementById("imageInput");
+      const status = document.getElementById("status");
+      const result = document.getElementById("result");
+
+      if (imageInput.files.length === 0) {
+        alert("Pilih foto dulu!");
+        return;
+      }
+
+      status.innerText = "⏳ Sedang memproses OCR...";
+      result.value = "";
+
+      Tesseract.recognize(
+        imageInput.files[0],
+        'ind+eng',
+        {
+          logger: m => {
+            if (m.status === "recognizing text") {
+              status.innerText = `⏳ Proses: ${Math.round(m.progress * 100)}%`;
+            }
+          }
+        }
+      ).then(({ data: { text } }) => {
+        result.value = text;
+        status.innerText = "✅ Selesai! Teks siap diedit.";
+      }).catch(err => {
+        status.innerText = "❌ Gagal memproses gambar";
+        console.error(err);
+      });
+    }
+  </script>
+
 </body>
 </html>
-
