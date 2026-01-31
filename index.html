@@ -10,8 +10,15 @@
   <style>
     body {
       font-family: Arial, sans-serif;
+      background: #f2f2f2;
       padding: 15px;
-      background: #f5f5f5;
+    }
+    .container {
+      background: #ffffff;
+      padding: 15px;
+      border-radius: 8px;
+      max-width: 600px;
+      margin: auto;
     }
     h2 {
       text-align: center;
@@ -26,47 +33,43 @@
       cursor: pointer;
     }
     textarea {
-      height: 220px;
+      height: 240px;
       padding: 10px;
       font-size: 14px;
+      white-space: pre-wrap;
     }
     #status {
       margin-top: 10px;
       font-weight: bold;
     }
-    .box {
-      background: white;
-      padding: 15px;
-      border-radius: 8px;
-    }
   </style>
 </head>
 <body>
 
-  <div class="box">
+  <div class="container">
     <h2>📸 Scan Foto ke Teks</h2>
 
     <input type="file" id="imageInput" accept="image/*">
 
     <button onclick="scanImage()">Scan Sekarang</button>
 
-    <p id="status">Silakan pilih foto lalu scan</p>
+    <p id="status">Pilih foto tulisan yang jelas</p>
 
     <textarea id="result" placeholder="Hasil teks akan muncul di sini..."></textarea>
   </div>
 
   <script>
-    // Merapikan teks hasil OCR
+    // Rapikan teks OCR
     function cleanOCRText(text) {
       return text
+        .replace(/\r/g, '')
+        .replace(/[^\x20-\x7E\n]/g, '')
         .replace(/\s+/g, ' ')
-        .replace(/ \n/g, '\n')
         .replace(/\n{3,}/g, '\n\n')
         .replace(/\s([.,!?;:])/g, '$1')
         .trim();
     }
 
-    // Scan gambar ke teks
     function scanImage() {
       const imageInput = document.getElementById("imageInput");
       const status = document.getElementById("status");
@@ -77,24 +80,30 @@
         return;
       }
 
-      status.innerText = "⏳ Sedang memproses OCR...";
+      status.innerText = "⏳ Memproses OCR...";
       result.value = "";
 
       Tesseract.recognize(
         imageInput.files[0],
         'ind+eng',
         {
+          tessedit_char_whitelist:
+            'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,()/:;- ',
+          preserve_interword_spaces: '1',
           logger: m => {
             if (m.status === "recognizing text") {
-              status.innerText = "⏳ Proses: " + Math.round(m.progress * 100) + "%";
+              status.innerText =
+                "⏳ Proses: " + Math.round(m.progress * 100) + "%";
             }
           }
         }
-      ).then(({ data: { text } }) => {
+      )
+      .then(({ data: { text } }) => {
         result.value = cleanOCRText(text);
         status.innerText = "✅ Selesai! Teks siap diedit.";
-      }).catch(err => {
-        status.innerText = "❌ Terjadi kesalahan OCR";
+      })
+      .catch(err => {
+        status.innerText = "❌ OCR gagal";
         console.error(err);
       });
     }
