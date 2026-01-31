@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Scan & Pilih Teks (Lens-like)</title>
+<title>Scan & Pilih Teks (Stabil)</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <style>
@@ -26,19 +26,20 @@ h2 {
   display: block;
 }
 
-.word {
+.line {
   position: absolute;
-  border: 1px solid rgba(0, 255, 0, 0.4);
+  border: 2px solid rgba(0, 150, 255, 0.5);
+  background: rgba(0, 150, 255, 0.15);
   cursor: pointer;
 }
 
-.word:hover {
-  background: rgba(0, 255, 0, 0.3);
+.line:hover {
+  background: rgba(0, 150, 255, 0.35);
 }
 
 textarea {
   width: 100%;
-  height: 200px;
+  height: 180px;
   margin-top: 10px;
   padding: 10px;
 }
@@ -50,8 +51,8 @@ button, input {
 }
 
 #status {
-  font-size: 14px;
   margin-top: 8px;
+  font-size: 14px;
 }
 </style>
 </head>
@@ -96,32 +97,30 @@ async function scan() {
 
   const { data } = await worker.recognize(img);
 
-  container.querySelectorAll(".word").forEach(e => e.remove());
+  container.querySelectorAll(".line").forEach(e => e.remove());
 
-  const imgRect = img.getBoundingClientRect();
+  const scaleX = img.clientWidth / img.naturalWidth;
+  const scaleY = img.clientHeight / img.naturalHeight;
 
-  data.words.forEach(word => {
-    if (!word.text.trim()) return;
+  data.lines.forEach(line => {
+    if (!line.text.trim()) return;
 
-    const div = document.createElement("div");
-    div.className = "word";
+    const box = document.createElement("div");
+    box.className = "line";
 
-    const scaleX = img.clientWidth / img.naturalWidth;
-    const scaleY = img.clientHeight / img.naturalHeight;
+    box.style.left = line.bbox.x0 * scaleX + "px";
+    box.style.top = line.bbox.y0 * scaleY + "px";
+    box.style.width = (line.bbox.x1 - line.bbox.x0) * scaleX + "px";
+    box.style.height = (line.bbox.y1 - line.bbox.y0) * scaleY + "px";
 
-    div.style.left = word.bbox.x0 * scaleX + "px";
-    div.style.top = word.bbox.y0 * scaleY + "px";
-    div.style.width = (word.bbox.x1 - word.bbox.x0) * scaleX + "px";
-    div.style.height = (word.bbox.y1 - word.bbox.y0) * scaleY + "px";
-
-    div.onclick = () => {
-      result.value += word.text + " ";
+    box.onclick = () => {
+      result.value += line.text + "\n";
     };
 
-    container.appendChild(div);
+    container.appendChild(box);
   });
 
-  statusText.innerText = "✅ Scan selesai — tap teks untuk mengambil";
+  statusText.innerText = "✅ Scan selesai — tap baris teks untuk mengambil";
   await worker.terminate();
 }
 </script>
