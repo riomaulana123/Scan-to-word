@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Area OCR – Pilih dari Gambar</title>
+<title>Area OCR - Blok dari Gambar</title>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
@@ -11,18 +11,17 @@
 <style>
 body {
   font-family: Arial, sans-serif;
-  background: #f5f5f5;
+  background: #f2f2f2;
   padding: 10px;
 }
 
-h2 {
-  text-align: center;
-}
+h2 { text-align:center; }
 
 #imageContainer {
   position: relative;
   width: 100%;
   background: #000;
+  touch-action: none;
 }
 
 #image {
@@ -33,7 +32,7 @@ h2 {
 #selection {
   position: absolute;
   border: 2px dashed #00aaff;
-  background: rgba(0, 170, 255, 0.2);
+  background: rgba(0,170,255,0.25);
   display: none;
 }
 
@@ -47,12 +46,11 @@ button, input {
 textarea {
   width: 100%;
   height: 120px;
-  margin-top: 10px;
-  padding: 10px;
+  margin-top: 8px;
 }
 
 #status {
-  margin-top: 8px;
+  margin-top: 6px;
   font-size: 14px;
 }
 </style>
@@ -60,7 +58,7 @@ textarea {
 
 <body>
 
-<h2>📸 Area OCR (Blok dari Gambar)</h2>
+<h2>📸 Area OCR (Blok Langsung dari Gambar)</h2>
 
 <input type="file" accept="image/*" id="imageInput">
 
@@ -73,7 +71,7 @@ textarea {
 
 <p id="status"></p>
 
-<textarea id="ocrResult" placeholder="Hasil teks dari area akan muncul di sini..."></textarea>
+<textarea id="ocrResult" placeholder="Hasil teks dari area..."></textarea>
 
 <h3>Editor</h3>
 <div id="editor" style="height:200px;background:#fff;"></div>
@@ -88,49 +86,80 @@ const ocrResult = document.getElementById("ocrResult");
 
 const quill = new Quill('#editor', { theme: 'snow' });
 
-let startX, startY, endX, endY;
+let startX = 0, startY = 0;
 let selecting = false;
 
+// Load image
 imageInput.onchange = e => {
   img.src = URL.createObjectURL(e.target.files[0]);
 };
 
-container.addEventListener("mousedown", e => {
-  selecting = true;
+// Convert touch / mouse
+function getPos(e) {
   const rect = container.getBoundingClientRect();
-  startX = e.clientX - rect.left;
-  startY = e.clientY - rect.top;
+  if (e.touches) {
+    return {
+      x: e.touches[0].clientX - rect.left,
+      y: e.touches[0].clientY - rect.top
+    };
+  }
+  return {
+    x: e.clientX - rect.left,
+    y: e.clientY - rect.top
+  };
+}
+
+// START
+container.addEventListener("mousedown", startSelect);
+container.addEventListener("touchstart", startSelect);
+
+function startSelect(e) {
+  e.preventDefault();
+  selecting = true;
+  const pos = getPos(e);
+  startX = pos.x;
+  startY = pos.y;
 
   selection.style.left = startX + "px";
   selection.style.top = startY + "px";
-  selection.style.width = 0;
-  selection.style.height = 0;
+  selection.style.width = "0px";
+  selection.style.height = "0px";
   selection.style.display = "block";
-});
+}
 
-container.addEventListener("mousemove", e => {
+// MOVE
+container.addEventListener("mousemove", moveSelect);
+container.addEventListener("touchmove", moveSelect);
+
+function moveSelect(e) {
   if (!selecting) return;
-  const rect = container.getBoundingClientRect();
-  endX = e.clientX - rect.left;
-  endY = e.clientY - rect.top;
+  const pos = getPos(e);
 
-  selection.style.width = Math.abs(endX - startX) + "px";
-  selection.style.height = Math.abs(endY - startY) + "px";
-  selection.style.left = Math.min(startX, endX) + "px";
-  selection.style.top = Math.min(startY, endY) + "px";
-});
+  const w = pos.x - startX;
+  const h = pos.y - startY;
 
-container.addEventListener("mouseup", () => {
+  selection.style.width = Math.abs(w) + "px";
+  selection.style.height = Math.abs(h) + "px";
+  selection.style.left = Math.min(startX, pos.x) + "px";
+  selection.style.top = Math.min(startY, pos.y) + "px";
+}
+
+// END
+container.addEventListener("mouseup", endSelect);
+container.addEventListener("touchend", endSelect);
+
+function endSelect() {
   selecting = false;
-});
+}
 
+// OCR
 async function scanArea() {
-  if (!selection.style.display || selection.offsetWidth < 10) {
+  if (selection.offsetWidth < 10 || selection.offsetHeight < 10) {
     alert("Blok area teks dulu");
     return;
   }
 
-  statusText.innerText = "⏳ Memproses OCR area...";
+  statusText.innerText = "⏳ OCR area diproses...";
 
   const scaleX = img.naturalWidth / img.clientWidth;
   const scaleY = img.naturalHeight / img.clientHeight;
@@ -141,14 +170,14 @@ async function scanArea() {
   const h = selection.offsetHeight * scaleY;
 
   const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-
   canvas.width = w;
   canvas.height = h;
+  canvas.getContext("2d").drawImage(img, x, y, w, h, 0, 0, w, h);
 
-  ctx.drawImage(img, x, y, w, h, 0, 0, w, h);
+  const worker = await Tesseract.createWorker({
+    logger: m => statusText.innerText = `⏳ ${Math.round(m.progress * 100)}%`
+  });
 
-  const worker = await Tesseract.createWorker();
   await worker.loadLanguage("ind+eng");
   await worker.initialize("ind+eng");
 
@@ -157,8 +186,8 @@ async function scanArea() {
   ocrResult.value += data.text.trim() + "\n";
   quill.insertText(quill.getLength(), data.text.trim() + "\n");
 
-  statusText.innerText = "✅ Area berhasil di-scan";
   await worker.terminate();
+  statusText.innerText = "✅ Area berhasil di-scan";
 }
 </script>
 
