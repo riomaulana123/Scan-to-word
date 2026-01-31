@@ -2,14 +2,14 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Scan Foto ke Teks (Stabil)</title>
+<title>Scan Foto ke Teks Cepat</title>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <style>
 body {
   font-family: Arial, sans-serif;
-  background: #f5f5f5;
+  background: #f4f4f4;
   padding: 15px;
 }
 
@@ -20,14 +20,15 @@ h2 {
 input, button {
   width: 100%;
   padding: 10px;
-  margin: 8px 0;
+  margin-top: 10px;
+  font-size: 16px;
 }
 
 button {
   background: #2196f3;
-  color: white;
+  color: #fff;
   border: none;
-  font-size: 16px;
+  border-radius: 5px;
 }
 
 img {
@@ -45,6 +46,7 @@ textarea {
 }
 
 #status {
+  margin-top: 10px;
   font-size: 14px;
   color: green;
 }
@@ -53,7 +55,7 @@ textarea {
 
 <body>
 
-<h2>📸 Scan Foto ke Teks</h2>
+<h2>📸 Scan Foto Jadi Teks</h2>
 
 <input type="file" id="imageInput" accept="image/*">
 
@@ -78,29 +80,35 @@ imageInput.addEventListener("change", e => {
   }
 });
 
-// ===== PREPROCESSING (KUNCI OCR) =====
+// =====================
+// RESIZE + PREPROCESS
+// =====================
 function preprocessImage(img) {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
 
-  canvas.width = img.naturalWidth;
-  canvas.height = img.naturalHeight;
+  const maxWidth = 1600;
+  const scale = Math.min(1, maxWidth / img.naturalWidth);
 
-  // Filter penting agar teks utuh
-  ctx.filter = "grayscale(100%) contrast(180%) brightness(110%)";
-  ctx.drawImage(img, 0, 0);
+  canvas.width = img.naturalWidth * scale;
+  canvas.height = img.naturalHeight * scale;
+
+  ctx.filter = "grayscale(100%) contrast(150%)";
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
   return canvas;
 }
 
-// ===== OCR UTAMA =====
+// =====================
+// OCR UTAMA
+// =====================
 async function startOCR() {
   if (!preview.src) {
     alert("Pilih gambar dulu");
     return;
   }
 
-  statusText.innerText = "⏳ Memproses OCR, mohon tunggu...";
+  statusText.innerText = "⏳ Memulai scan...";
   output.value = "";
 
   const canvas = preprocessImage(preview);
@@ -117,16 +125,15 @@ async function startOCR() {
   await worker.loadLanguage("ind+eng");
   await worker.initialize("ind+eng");
 
-  // SETTING PALING STABIL
   await worker.setParameters({
-    tessedit_pageseg_mode: Tesseract.PSM.AUTO,
+    tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
     preserve_interword_spaces: "1"
   });
 
   const { data } = await worker.recognize(canvas);
 
   output.value = data.text.trim();
-  statusText.innerText = "✅ Selesai, teks siap diedit";
+  statusText.innerText = "✅ Scan selesai (cepat & stabil)";
 
   await worker.terminate();
 }
