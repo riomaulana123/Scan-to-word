@@ -1,50 +1,104 @@
-<script>
-  // Fungsi untuk merapikan teks hasil OCR
-  function cleanOCRText(text) {
-    return text
-      // Gabungkan spasi berlebihan
-      .replace(/\s+/g, ' ')
-      // Rapikan baris
-      .replace(/ \n/g, '\n')
-      // Maksimal 2 enter
-      .replace(/\n{3,}/g, '\n\n')
-      // Hapus spasi sebelum tanda baca
-      .replace(/\s([.,!?;:])/g, '$1')
-      // Hapus spasi di awal & akhir
-      .trim();
-  }
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Scan Foto ke Teks</title>
 
-  // Fungsi scan gambar ke teks
-  function scanImage() {
-    const imageInput = document.getElementById("imageInput");
-    const status = document.getElementById("status");
-    const result = document.getElementById("result");
+  <!-- Tesseract OCR -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
-    if (imageInput.files.length === 0) {
-      alert("Pilih foto dulu!");
-      return;
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 15px;
+      background: #f5f5f5;
+    }
+    h2 {
+      text-align: center;
+    }
+    input, button, textarea {
+      width: 100%;
+      margin-top: 10px;
+    }
+    button {
+      padding: 12px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    textarea {
+      height: 220px;
+      padding: 10px;
+      font-size: 14px;
+    }
+    #status {
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    .box {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="box">
+    <h2>📸 Scan Foto ke Teks</h2>
+
+    <input type="file" id="imageInput" accept="image/*">
+
+    <button onclick="scanImage()">Scan Sekarang</button>
+
+    <p id="status">Silakan pilih foto lalu scan</p>
+
+    <textarea id="result" placeholder="Hasil teks akan muncul di sini..."></textarea>
+  </div>
+
+  <script>
+    // Merapikan teks hasil OCR
+    function cleanOCRText(text) {
+      return text
+        .replace(/\s+/g, ' ')
+        .replace(/ \n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .replace(/\s([.,!?;:])/g, '$1')
+        .trim();
     }
 
-    status.innerText = "⏳ Sedang memproses OCR...";
-    result.value = "";
+    // Scan gambar ke teks
+    function scanImage() {
+      const imageInput = document.getElementById("imageInput");
+      const status = document.getElementById("status");
+      const result = document.getElementById("result");
 
-    Tesseract.recognize(
-      imageInput.files[0],
-      'ind+eng',
-      {
-        logger: m => {
-          if (m.status === "recognizing text") {
-            status.innerText = `⏳ Proses: ${Math.round(m.progress * 100)}%`;
+      if (!imageInput.files.length) {
+        alert("Pilih foto dulu!");
+        return;
+      }
+
+      status.innerText = "⏳ Sedang memproses OCR...";
+      result.value = "";
+
+      Tesseract.recognize(
+        imageInput.files[0],
+        'ind+eng',
+        {
+          logger: m => {
+            if (m.status === "recognizing text") {
+              status.innerText = "⏳ Proses: " + Math.round(m.progress * 100) + "%";
+            }
           }
         }
-      }
-    ).then(({ data: { text } }) => {
-      const cleanedText = cleanOCRText(text);
-      result.value = cleanedText;
-      status.innerText = "✅ OCR selesai & teks dirapikan otomatis";
-    }).catch(err => {
-      status.innerText = "❌ Gagal memproses gambar";
-      console.error(err);
-    });
-  }
-</script>
+      ).then(({ data: { text } }) => {
+        result.value = cleanOCRText(text);
+        status.innerText = "✅ Selesai! Teks siap diedit.";
+      }).catch(err => {
+        status.innerText = "❌ Terjadi kesalahan OCR";
+        console.error(err);
+      });
+    }
+  </script>
+
+</body>
+</html>
