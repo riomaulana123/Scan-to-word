@@ -2,44 +2,76 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>OCR ke Word</title>
+<title>Smart OCR Lens</title>
 
+<!-- OCR -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+<!-- Editor -->
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+
+<!-- Word -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
-<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
-<script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+<!-- PDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
 body { font-family:Arial; background:#f2f2f2; padding:10px }
 h2 { text-align:center }
-#imageContainer { position:relative; width:100%; background:#000; touch-action:none }
+#imageContainer {
+  position:relative;
+  width:100%;
+  background:#000;
+  border-radius:10px;
+  overflow:hidden;
+  touch-action:none;
+}
 #image { width:100%; display:block }
 #selection {
   position:absolute;
-  border:2px dashed #00aaff;
-  background:rgba(0,170,255,.25);
+  border:2px solid #00e5ff;
+  background:rgba(0,229,255,.25);
   display:none;
 }
 button,input {
   width:100%;
-  padding:10px;
+  padding:12px;
   margin-top:8px;
   font-size:16px;
+  border:none;
+  border-radius:8px;
+}
+button {
+  background:#007bff;
+  color:white;
+  font-weight:bold;
+}
+button.secondary {
+  background:#28a745;
+}
+button.pdf {
+  background:#dc3545;
+}
+#status {
+  text-align:center;
+  margin-top:6px;
+  font-size:14px;
+  color:#555;
 }
 textarea {
   width:100%;
-  height:120px;
+  height:100px;
   margin-top:8px;
 }
-#status { margin-top:6px; font-size:14px }
 </style>
 </head>
 
 <body>
 
-<h2>📸 OCR ke Word</h2>
+<h2>📸 Smart OCR Lens</h2>
 
 <input type="file" accept="image/*" id="imageInput">
 
@@ -49,14 +81,15 @@ textarea {
 </div>
 
 <button onclick="scanArea()">🔍 Scan Area</button>
-<button onclick="exportWord()">⬇️ Download Word (.docx)</button>
+<button class="secondary" onclick="exportWord()">⬇️ Download Word</button>
+<button class="pdf" onclick="exportPDF()">⬇️ Download PDF</button>
 
-<p id="status">⏳ Menyiapkan OCR…</p>
+<p id="status">⏳ Menyiapkan OCR engine…</p>
 
 <textarea id="ocrResult" placeholder="Hasil teks mentah..."></textarea>
 
 <h3>Editor</h3>
-<div id="editor" style="height:220px;background:#fff"></div>
+<div id="editor" style="height:220px;background:#fff;border-radius:8px"></div>
 
 <script>
 const img = document.getElementById("image");
@@ -69,12 +102,12 @@ const quill = new Quill('#editor', { theme:'snow' });
 let startX=0, startY=0, selecting=false;
 let worker;
 
-// ===== INIT OCR SEKALI =====
-(async () => {
+// INIT OCR ONCE
+(async ()=>{
   worker = await Tesseract.createWorker();
   await worker.loadLanguage("ind+eng");
   await worker.initialize("ind+eng");
-  statusText.innerText = "✅ OCR siap";
+  statusText.innerText="✅ OCR siap digunakan";
 })();
 
 // Load image
@@ -82,13 +115,14 @@ imageInput.onchange = e => {
   img.src = URL.createObjectURL(e.target.files[0]);
 };
 
-// Touch & Mouse
+// Position helper
 function getPos(e){
   const r = container.getBoundingClientRect();
   const p = e.touches ? e.touches[0] : e;
   return { x:p.clientX-r.left, y:p.clientY-r.top };
 }
 
+// Start select
 container.addEventListener("touchstart", start);
 container.addEventListener("mousedown", start);
 function start(e){
@@ -103,6 +137,7 @@ function start(e){
   selection.style.height=0;
 }
 
+// Move select
 container.addEventListener("touchmove", move);
 container.addEventListener("mousemove", move);
 function move(e){
@@ -114,12 +149,13 @@ function move(e){
   selection.style.height=Math.abs(p.y-startY)+"px";
 }
 
+// End select
 container.addEventListener("touchend",()=>selecting=false);
 container.addEventListener("mouseup",()=>selecting=false);
 
-// ===== OCR AREA =====
+// OCR AREA
 async function scanArea(){
-  if(selection.offsetWidth<10) return alert("Blok area dulu");
+  if(selection.offsetWidth<10) return alert("Blok area teks dulu");
 
   statusText.innerText="⏳ Scan area…";
 
@@ -136,34 +172,42 @@ async function scanArea(){
   c.getContext("2d").drawImage(img,x,y,w,h,0,0,w,h);
 
   const { data } = await worker.recognize(c);
-
   const text = data.text.trim();
-  ocrResult.value += text + "\n";
-  quill.insertText(quill.getLength(), text + "\n");
+
+  ocrResult.value += text+"\n";
+  quill.insertText(quill.getLength(), text+"\n");
 
   statusText.innerText="✅ Scan selesai";
 }
 
-// ===== EXPORT WORD =====
+// EXPORT WORD
 function exportWord(){
-  const content = quill.getText().trim();
-  if(!content) return alert("Teks masih kosong");
+  const text = quill.getText().trim();
+  if(!text) return alert("Teks kosong");
 
-  const paragraphs = content.split("\n").filter(p => p.trim() !== "");
-
+  const paras = text.split("\n").filter(p=>p.trim());
   const doc = new docx.Document({
-    sections: [{
-      children: paragraphs.map(p =>
-        new docx.Paragraph({
-          children: [ new docx.TextRun({ text:p, font:"Arial", size:24 }) ]
-        })
-      )
+    sections:[{
+      children: paras.map(p=>new docx.Paragraph({
+        spacing:{ after:200 },
+        children:[ new docx.TextRun({ text:p, font:"Times New Roman", size:24 }) ]
+      }))
     }]
   });
 
-  docx.Packer.toBlob(doc).then(blob => {
-    saveAs(blob, "hasil-ocr.docx");
-  });
+  docx.Packer.toBlob(doc).then(b=>saveAs(b,"hasil-ocr.docx"));
+}
+
+// EXPORT PDF
+function exportPDF(){
+  const { jsPDF } = window.jspdf;
+  const text = quill.getText().trim();
+  if(!text) return alert("Teks kosong");
+
+  const pdf = new jsPDF();
+  const lines = pdf.splitTextToSize(text,180);
+  pdf.text(lines,10,10);
+  pdf.save("hasil-ocr.pdf");
 }
 </script>
 
