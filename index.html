@@ -2,126 +2,96 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Scan & Pilih Teks (Stabil)</title>
+<title>Scan Foto ke Teks</title>
+
+<!-- OCR -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+<!-- Editor -->
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
 
 <style>
 body {
   font-family: Arial, sans-serif;
-  background: #f4f4f4;
+  padding: 15px;
+  background: #f5f5f5;
+}
+
+h2 { margin-top: 0; }
+
+.box {
+  background: white;
   padding: 10px;
+  border-radius: 6px;
+  margin-bottom: 15px;
 }
 
-h2 {
-  text-align: center;
-}
-
-#container {
-  position: relative;
-  width: 100%;
-}
-
-#image {
-  width: 100%;
-  display: block;
-}
-
-.line {
-  position: absolute;
-  border: 2px solid rgba(0, 150, 255, 0.5);
-  background: rgba(0, 150, 255, 0.15);
-  cursor: pointer;
-}
-
-.line:hover {
-  background: rgba(0, 150, 255, 0.35);
-}
-
-textarea {
-  width: 100%;
-  height: 180px;
-  margin-top: 10px;
+#ocrResult {
+  border: 1px solid #ccc;
   padding: 10px;
+  min-height: 120px;
+  white-space: pre-wrap;
 }
 
-button, input {
-  width: 100%;
+button {
   padding: 10px;
   margin-top: 10px;
-}
-
-#status {
-  margin-top: 8px;
-  font-size: 14px;
+  width: 100%;
+  font-size: 16px;
 }
 </style>
 </head>
 
 <body>
 
-<h2>📸 Scan & Pilih Teks</h2>
+<h2>📸 Scan Foto → Pilih Teks → Kirim</h2>
 
-<input type="file" id="upload" accept="image/*">
-<button onclick="scan()">Scan Sekali</button>
-
-<p id="status"></p>
-
-<div id="container">
-  <img id="image">
+<div class="box">
+  <input type="file" accept="image/*" id="imageInput">
+  <button onclick="scanImage()">🔍 Scan Gambar</button>
 </div>
 
-<textarea id="result" placeholder="Teks hasil pilihan akan muncul di sini..."></textarea>
+<div class="box">
+  <h3>Hasil Scan (blok teks yang mau dipilih)</h3>
+  <div id="ocrResult"></div>
+  <button onclick="sendSelectedText()">📤 Kirim Teks Terpilih</button>
+</div>
+
+<div class="box">
+  <h3>Editor (Siap dikirim ke Word)</h3>
+  <div id="editor" style="height:200px;"></div>
+</div>
 
 <script>
-const upload = document.getElementById("upload");
-const img = document.getElementById("image");
-const container = document.getElementById("container");
-const result = document.getElementById("result");
-const statusText = document.getElementById("status");
+const quill = new Quill('#editor', {
+  theme: 'snow'
+});
 
-upload.onchange = e => {
-  img.src = URL.createObjectURL(e.target.files[0]);
-};
+function scanImage() {
+  const file = document.getElementById('imageInput').files[0];
+  if (!file) return alert("Pilih gambar dulu");
 
-async function scan() {
-  if (!img.src) {
-    alert("Pilih gambar dulu");
+  document.getElementById('ocrResult').innerText = "⏳ Memproses...";
+
+  Tesseract.recognize(
+    file,
+    'eng+ind',
+    {
+      logger: m => console.log(m)
+    }
+  ).then(({ data }) => {
+    document.getElementById('ocrResult').innerText = data.text;
+  });
+}
+
+function sendSelectedText() {
+  const selection = window.getSelection().toString();
+  if (!selection) {
+    alert("Blok dulu teks yang mau dikirim");
     return;
   }
-
-  statusText.innerText = "⏳ Scan pertama (sekali saja)...";
-
-  const worker = await Tesseract.createWorker();
-  await worker.loadLanguage("ind+eng");
-  await worker.initialize("ind+eng");
-
-  const { data } = await worker.recognize(img);
-
-  container.querySelectorAll(".line").forEach(e => e.remove());
-
-  const scaleX = img.clientWidth / img.naturalWidth;
-  const scaleY = img.clientHeight / img.naturalHeight;
-
-  data.lines.forEach(line => {
-    if (!line.text.trim()) return;
-
-    const box = document.createElement("div");
-    box.className = "line";
-
-    box.style.left = line.bbox.x0 * scaleX + "px";
-    box.style.top = line.bbox.y0 * scaleY + "px";
-    box.style.width = (line.bbox.x1 - line.bbox.x0) * scaleX + "px";
-    box.style.height = (line.bbox.y1 - line.bbox.y0) * scaleY + "px";
-
-    box.onclick = () => {
-      result.value += line.text + "\n";
-    };
-
-    container.appendChild(box);
-  });
-
-  statusText.innerText = "✅ Scan selesai — tap baris teks untuk mengambil";
-  await worker.terminate();
+  quill.insertText(quill.getLength(), selection + "\n");
 }
 </script>
 
