@@ -8,8 +8,8 @@
 <!-- OCR -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
-<!-- TinyMCE (Editor mirip Word) -->
-<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<!-- TinyMCE (WAJIB PAKAI API KEY) -->
+<script src="https://cdn.tiny.cloud/1/API_KEY_KAMU/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
 
 <!-- Export -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.min.js"></script>
@@ -18,44 +18,14 @@
 
 <style>
 *{box-sizing:border-box}
-body{
-  font-family:system-ui,Arial;
-  background:#eef2f7;
-  margin:0;padding:12px
-}
+body{font-family:system-ui,Arial;background:#eef2f7;margin:0;padding:12px}
 .container{max-width:900px;margin:auto}
-.card{
-  background:#fff;
-  border-radius:14px;
-  padding:12px;
-  margin-bottom:12px;
-  box-shadow:0 8px 20px rgba(0,0,0,.08)
-}
+.card{background:#fff;border-radius:14px;padding:12px;margin-bottom:12px;box-shadow:0 8px 20px rgba(0,0,0,.08)}
 h1{text-align:center}
-#imageContainer{
-  position:relative;
-  border-radius:12px;
-  overflow:hidden;
-  background:#000;
-  touch-action:none
-}
+#imageContainer{position:relative;border-radius:12px;overflow:hidden;background:#000;touch-action:none}
 #image{width:100%;display:block}
-#selection{
-  position:absolute;
-  border:2px dashed #00c3ff;
-  background:rgba(0,195,255,.25);
-  display:none
-}
-button{
-  width:100%;
-  padding:12px;
-  margin-top:6px;
-  border:none;
-  border-radius:10px;
-  font-size:15px;
-  font-weight:600;
-  cursor:pointer
-}
+#selection{position:absolute;border:2px dashed #00c3ff;background:rgba(0,195,255,.25);display:none}
+button{width:100%;padding:12px;margin-top:6px;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer}
 .primary{background:#0d6efd;color:#fff}
 .success{background:#198754;color:#fff}
 .danger{background:#dc3545;color:#fff}
@@ -97,14 +67,12 @@ button:disabled{opacity:.5}
 <textarea id="editor"></textarea>
 </div>
 
-<div class="footer">
-Scan → Edit → Download → Print
-</div>
+<div class="footer">Scan → Edit → Download → Print</div>
 
 </div>
 
 <script>
-/* ================= EDITOR ================= */
+/* ===== EDITOR ===== */
 tinymce.init({
   selector:'#editor',
   height:400,
@@ -114,12 +82,13 @@ tinymce.init({
   font_family_formats:'Times New Roman=times new roman;Arial=arial;Calibri=calibri;Verdana=verdana'
 });
 
-/* ================= OCR ================= */
+/* ===== OCR ===== */
 const img=document.getElementById("image");
 const container=document.getElementById("imageContainer");
 const selection=document.getElementById("selection");
 const scanBtn=document.getElementById("scanBtn");
 const statusText=document.getElementById("status");
+const imageInput=document.getElementById("imageInput");
 
 let startX=0,startY=0,selecting=false;
 let worker;
@@ -134,6 +103,9 @@ let worker;
   });
   await worker.loadLanguage("ind+eng");
   await worker.initialize("ind+eng");
+  await worker.setParameters({
+    tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK
+  });
   statusText.innerText="✅ OCR siap digunakan";
 })();
 
@@ -181,30 +153,42 @@ function end(){
 
 async function scanArea(){
   if(selection.offsetWidth<20)return alert("Blok teks dulu");
-  statusText.innerText="⏳ Memproses OCR…";
+
+  statusText.innerText="⏳ OCR berjalan, mohon tunggu…";
+  scanBtn.disabled=true;
 
   const sx=img.naturalWidth/img.clientWidth;
   const sy=img.naturalHeight/img.clientHeight;
-
   const x=selection.offsetLeft*sx;
   const y=selection.offsetTop*sy;
   const w=selection.offsetWidth*sx;
   const h=selection.offsetHeight*sy;
 
   const c=document.createElement("canvas");
-  c.width=w;c.height=h;
-  c.getContext("2d").drawImage(img,x,y,w,h,0,0,w,h);
+  const ctx=c.getContext("2d");
+
+  const MAX=1200;
+  let cw=w,ch=h;
+  if(w>MAX||h>MAX){
+    const scale=Math.min(MAX/w,MAX/h);
+    cw=w*scale;ch=h*scale;
+  }
+
+  c.width=cw;c.height=ch;
+  ctx.drawImage(img,x,y,w,h,0,0,cw,ch);
 
   const {data}=await worker.recognize(c);
   tinymce.activeEditor.insertContent(data.text.replace(/\n/g,"<br>"));
+
   statusText.innerText="✅ Scan selesai";
+  scanBtn.disabled=false;
 }
 
-/* ================= EXPORT ================= */
+/* ===== EXPORT ===== */
 function downloadDOCX(){
-  const html=tinymce.activeEditor.getContent({format:'text'});
-  if(!html)return alert("Teks kosong");
-  const paras=html.split("\n").filter(p=>p.trim());
+  const text=tinymce.activeEditor.getContent({format:'text'});
+  if(!text)return alert("Teks kosong");
+  const paras=text.split("\n").filter(p=>p.trim());
   const doc=new docx.Document({
     sections:[{children:paras.map(p=>new docx.Paragraph({
       children:[new docx.TextRun({text:p,font:"Times New Roman",size:24})]
@@ -217,8 +201,7 @@ function downloadPDF(){
   const {jsPDF}=window.jspdf;
   const text=tinymce.activeEditor.getContent({format:'text'});
   const pdf=new jsPDF();
-  const lines=pdf.splitTextToSize(text,180);
-  pdf.text(lines,10,10);
+  pdf.text(pdf.splitTextToSize(text,180),10,10);
   pdf.save("hasil-ocr.pdf");
 }
 
