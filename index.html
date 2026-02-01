@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Smart OCR Lens</title>
+<title>Smart OCR Lens Ultimate</title>
 
 <!-- OCR -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -12,41 +12,49 @@
 <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
 
-<!-- Export -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<!-- PDF -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<!-- WORD -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
 <style>
 *{box-sizing:border-box}
 body{
+  margin:0;padding:12px;
   font-family:system-ui,Arial;
-  background:linear-gradient(180deg,#f4f7fb,#dde7f3);
-  margin:0;padding:12px
+  background:#eef3f9
 }
-.container{max-width:760px;margin:auto}
+.container{max-width:780px;margin:auto}
 h1{text-align:center;margin:10px 0}
 .card{
-  background:#fff;border-radius:16px;
-  padding:14px;margin-bottom:14px;
+  background:#fff;
+  padding:14px;
+  border-radius:16px;
+  margin-bottom:14px;
   box-shadow:0 10px 28px rgba(0,0,0,.1)
 }
 button{
-  width:100%;padding:12px;
-  border:none;border-radius:12px;
-  font-size:15px;font-weight:600;
-  margin-top:8px;cursor:pointer
+  width:100%;
+  padding:12px;
+  border:none;
+  border-radius:12px;
+  font-size:15px;
+  font-weight:600;
+  margin-top:8px;
+  cursor:pointer
 }
-.scan{background:#0d6efd;color:#fff}
-.full{background:#198754;color:#fff}
-.word{background:#6f42c1;color:#fff}
-.pdf{background:#dc3545;color:#fff}
-.reset{background:#adb5bd}
-button:active{transform:scale(.97)}
-
+.primary{background:#0d6efd;color:#fff}
+.success{background:#198754;color:#fff}
+.warning{background:#fd7e14;color:#fff}
+.gray{background:#adb5bd}
+.row{display:flex;gap:8px}
+.row button{flex:1}
 #imageContainer{
-  position:relative;background:#000;
-  border-radius:12px;overflow:hidden;
+  position:relative;
+  background:#000;
+  border-radius:12px;
+  overflow:hidden;
   touch-action:none
 }
 #image{width:100%;display:block}
@@ -57,28 +65,38 @@ button:active{transform:scale(.97)}
   display:none
 }
 #status{text-align:center;font-size:14px;margin-top:6px}
-#editor{height:260px;border-radius:12px}
+#editor{height:260px}
 textarea{
-  width:100%;height:90px;
+  width:100%;
+  height:90px;
+  padding:10px;
   border-radius:10px;
-  padding:10px;border:1px solid #ddd
+  border:1px solid #ddd
 }
-select,input[type=file]{width:100%;padding:10px}
 .footer{text-align:center;font-size:12px;color:#777}
+select{
+  width:100%;
+  padding:10px;
+  border-radius:10px;
+  margin-top:6px
+}
 </style>
 </head>
 
 <body>
 <div class="container">
 
-<h1>📸 Smart OCR Lens</h1>
+<h1>📸 Smart OCR Lens Ultimate</h1>
 
 <div class="card">
   <input type="file" accept="image/*" id="imageInput">
-  <select id="lang">
-    <option value="ind+eng">Indonesia + English</option>
-    <option value="ind">Indonesia</option>
-    <option value="eng">English</option>
+</div>
+
+<div class="card">
+  <label>⚙️ Mode OCR</label>
+  <select id="mode">
+    <option value="fast">⚡ Cepat</option>
+    <option value="accurate">🎯 Akurat / Tulisan Tangan</option>
   </select>
 </div>
 
@@ -90,12 +108,11 @@ select,input[type=file]{width:100%;padding:10px}
 </div>
 
 <div class="card">
-  <button class="scan" onclick="scanArea()">🔍 Scan Area</button>
-  <button class="full" onclick="scanFull()">📄 Scan Full Image</button>
-  <button class="word" onclick="exportWord()">⬇️ Download Word</button>
-  <button class="pdf" onclick="exportPDF()">⬇️ Download PDF</button>
-  <button class="reset" onclick="resetAll()">♻️ Reset</button>
-  <div id="status">⏳ Menyiapkan OCR engine…</div>
+  <div class="row">
+    <button class="primary" onclick="scanFull()">📄 Scan Full</button>
+    <button class="gray" onclick="resetAll()">♻️ Reset</button>
+  </div>
+  <div id="status">⏳ Menyiapkan OCR…</div>
 </div>
 
 <div class="card">
@@ -106,8 +123,13 @@ select,input[type=file]{width:100%;padding:10px}
   <div id="editor"></div>
 </div>
 
+<div class="card">
+  <button class="success" onclick="downloadPDF()">⬇️ Download PDF</button>
+  <button class="warning" onclick="downloadWord()">⬇️ Download Word</button>
+</div>
+
 <div class="footer">
-  Smart OCR Lens • Cepat • Akurat • Gratis
+  Smart OCR Lens • Auto Scan • Handwriting • Export
 </div>
 
 </div>
@@ -118,20 +140,17 @@ const container=document.getElementById("imageContainer");
 const selection=document.getElementById("selection");
 const statusText=document.getElementById("status");
 const ocrResult=document.getElementById("ocrResult");
+const mode=document.getElementById("mode");
 const quill=new Quill('#editor',{theme:'snow'});
-let worker,startX,startY,selecting=false;
+
+let worker,selecting=false,startX=0,startY=0;
 
 (async()=>{
-  worker=await Tesseract.createWorker({
-    logger:m=>{
-      if(m.status==="recognizing text"){
-        statusText.innerText=`🤖 OCR ${Math.round(m.progress*100)}%`;
-      }
-    }
-  });
+  statusText.innerText="🤖 Menyiapkan OCR…";
+  worker=await Tesseract.createWorker();
   await worker.loadLanguage("ind+eng");
   await worker.initialize("ind+eng");
-  statusText.innerText="✅ OCR siap digunakan";
+  statusText.innerText="✅ OCR siap";
 })();
 
 imageInput.onchange=e=>{
@@ -139,106 +158,112 @@ imageInput.onchange=e=>{
   statusText.innerText="📷 Gambar dimuat";
 };
 
-function getPos(e){
+/* === AREA SELECT + AUTO SCAN === */
+function pos(e){
   const r=container.getBoundingClientRect();
   const p=e.touches?e.touches[0]:e;
   return{x:p.clientX-r.left,y:p.clientY-r.top};
 }
 
 container.onmousedown=container.ontouchstart=e=>{
-  e.preventDefault();selecting=true;
-  const p=getPos(e);startX=p.x;startY=p.y;
+  e.preventDefault();
+  selecting=true;
+  const p=pos(e);
+  startX=p.x;startY=p.y;
   selection.style.display="block";
 };
 
 container.onmousemove=container.ontouchmove=e=>{
   if(!selecting)return;
-  const p=getPos(e);
+  const p=pos(e);
   selection.style.left=Math.min(startX,p.x)+"px";
   selection.style.top=Math.min(startY,p.y)+"px";
   selection.style.width=Math.abs(p.x-startX)+"px";
   selection.style.height=Math.abs(p.y-startY)+"px";
 };
 
-container.onmouseup=container.ontouchend=()=>selecting=false;
-
-/* ⚡ PREPROCESS CEPAT */
-function preprocessFast(){
-  const maxW=1200;
-  const scale=Math.min(1,maxW/img.naturalWidth);
-  const c=document.createElement("canvas");
-  c.width=img.naturalWidth*scale;
-  c.height=img.naturalHeight*scale;
-  const ctx=c.getContext("2d");
-  ctx.drawImage(img,0,0,c.width,c.height);
-  const d=ctx.getImageData(0,0,c.width,c.height);
-  for(let i=0;i<d.data.length;i+=4){
-    const g=(d.data[i]+d.data[i+1]+d.data[i+2])/3;
-    d.data[i]=d.data[i+1]=d.data[i+2]=g;
+container.onmouseup=container.ontouchend=()=>{
+  if(selecting && selection.offsetWidth>10){
+    scanArea(); // AUTO SCAN
   }
-  ctx.putImageData(d,0,0);
-  return c;
-}
+  selecting=false;
+};
 
-/* ⚡ SCAN FULL */
-async function scanFull(){
-  if(!img.src)return alert("Upload gambar dulu");
-  statusText.innerText="⚡ Menyiapkan gambar…";
-  const canvas=preprocessFast();
-  statusText.innerText="🤖 OCR berjalan…";
-  const {data}=await worker.recognize(canvas,{
-    tessedit_pageseg_mode:6
-  });
-  quill.insertText(quill.getLength(),data.text+"\n");
-  ocrResult.value+=data.text+"\n";
-  statusText.innerText="✅ Scan selesai";
-}
-
-/* ⚡ SCAN AREA */
+/* === OCR AREA === */
 async function scanArea(){
-  if(selection.offsetWidth<10)return alert("Blok area dulu");
-  statusText.innerText="⚡ Scan area…";
+  statusText.innerText="⚡ Memindai area…";
+  const idx=quill.getLength();
+  quill.insertText(idx,"⏳ Memindai teks...\n");
+
   const sx=img.naturalWidth/img.clientWidth;
   const sy=img.naturalHeight/img.clientHeight;
   const x=selection.offsetLeft*sx;
   const y=selection.offsetTop*sy;
   const w=selection.offsetWidth*sx;
   const h=selection.offsetHeight*sy;
+
   const c=document.createElement("canvas");
-  c.width=Math.min(w,800);
+  const maxW=mode.value==="fast"?600:900;
+  c.width=Math.min(w,maxW);
   c.height=h*(c.width/w);
+
   c.getContext("2d").drawImage(img,x,y,w,h,0,0,c.width,c.height);
-  const {data}=await worker.recognize(c,{tessedit_pageseg_mode:11});
-  quill.insertText(quill.getLength(),data.text+"\n");
+
+  const {data}=await worker.recognize(c,{
+    tessedit_pageseg_mode: mode.value==="fast"?11:6
+  });
+
+  quill.deleteText(idx,18);
+  quill.insertText(idx,data.text+"\n");
   ocrResult.value+=data.text+"\n";
   statusText.innerText="✅ Scan area selesai";
 }
 
-function exportWord(){
-  const text=quill.getText().trim();
-  if(!text)return alert("Teks kosong");
-  const paras=text.split("\n").filter(p=>p.trim());
-  const doc=new docx.Document({
-    sections:[{children:paras.map(p=>new docx.Paragraph({
-      children:[new docx.TextRun({text:p,font:"Times New Roman",size:24})]
-    }))}]
+/* === FULL SCAN === */
+async function scanFull(){
+  statusText.innerText="⚡ Scan full…";
+  const idx=quill.getLength();
+  quill.insertText(idx,"⏳ Memindai teks...\n");
+
+  const c=document.createElement("canvas");
+  const scale=Math.min(1,900/img.naturalWidth);
+  c.width=img.naturalWidth*scale;
+  c.height=img.naturalHeight*scale;
+  c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+
+  const {data}=await worker.recognize(c,{
+    tessedit_pageseg_mode: mode.value==="fast"?6:3
   });
-  docx.Packer.toBlob(doc).then(b=>saveAs(b,"hasil-ocr.docx"));
+
+  quill.deleteText(idx,18);
+  quill.insertText(idx,data.text+"\n");
+  ocrResult.value+=data.text+"\n";
+  statusText.innerText="✅ Scan selesai";
 }
 
-function exportPDF(){
+/* === EXPORT PDF === */
+function downloadPDF(){
   const {jsPDF}=window.jspdf;
-  const text=quill.getText().trim();
-  if(!text)return alert("Teks kosong");
   const pdf=new jsPDF();
-  pdf.text(pdf.splitTextToSize(text,180),10,10);
+  pdf.text(quill.getText(),10,10);
   pdf.save("hasil-ocr.pdf");
 }
 
+/* === EXPORT WORD === */
+function downloadWord(){
+  const blob=new Blob(
+    ["\ufeff"+quill.getText()],
+    {type:"application/msword"}
+  );
+  saveAs(blob,"hasil-ocr.doc");
+}
+
+/* === RESET === */
 function resetAll(){
   quill.setText("");
   ocrResult.value="";
   selection.style.display="none";
+  statusText.innerText="♻️ Reset selesai";
 }
 </script>
 
