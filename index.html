@@ -3,248 +3,237 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Smart OCR Lens – Word Full Edition</title>
+<title>Smart OCR Lens Pro</title>
 
 <!-- OCR -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
-<!-- WORD-LIKE EDITOR -->
-<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js"></script>
+<!-- TinyMCE (Editor mirip Word) -->
+<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
 
-<!-- EXPORT -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<!-- Export -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
+*{box-sizing:border-box}
 body{
-  margin:0;
-  padding:12px;
   font-family:system-ui,Arial;
-  background:#e9edf2
+  background:#eef2f7;
+  margin:0;padding:12px
 }
-.container{max-width:1100px;margin:auto}
+.container{max-width:900px;margin:auto}
 .card{
   background:#fff;
-  padding:14px;
   border-radius:14px;
-  margin-bottom:14px;
-  box-shadow:0 10px 25px rgba(0,0,0,.1)
+  padding:12px;
+  margin-bottom:12px;
+  box-shadow:0 8px 20px rgba(0,0,0,.08)
+}
+h1{text-align:center}
+#imageContainer{
+  position:relative;
+  border-radius:12px;
+  overflow:hidden;
+  background:#000;
+  touch-action:none
+}
+#image{width:100%;display:block}
+#selection{
+  position:absolute;
+  border:2px dashed #00c3ff;
+  background:rgba(0,195,255,.25);
+  display:none
 }
 button{
+  width:100%;
   padding:12px;
+  margin-top:6px;
   border:none;
   border-radius:10px;
-  font-size:14px;
+  font-size:15px;
   font-weight:600;
-  cursor:pointer;
-  margin-top:6px
+  cursor:pointer
 }
 .primary{background:#0d6efd;color:#fff}
 .success{background:#198754;color:#fff}
-.warning{background:#fd7e14;color:#fff}
-.gray{background:#adb5bd}
-.row{display:flex;gap:8px}
-.row button{flex:1}
-.hidden{display:none}
-
-#imageContainer{
-  position:relative;
-  background:#000;
-  border-radius:12px;
-  overflow:hidden;
-}
-#image{width:100%}
-#selection{
-  position:absolute;
-  border:2px dashed #00e5ff;
-  background:rgba(0,229,255,.25);
-  display:none
-}
-#status{text-align:center;font-size:14px}
+.danger{background:#dc3545;color:#fff}
+.gray{background:#6c757d;color:#fff}
+button:disabled{opacity:.5}
+.row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+#status{text-align:center;font-size:14px;color:#555}
+.footer{text-align:center;font-size:12px;color:#777}
 </style>
 </head>
 
 <body>
 <div class="container">
 
-<h2>📸 Smart OCR Lens — Word Full Edition</h2>
+<h1>📸 Smart OCR Lens Pro</h1>
 
 <div class="card">
-  <input type="file" accept="image/*" id="imageInput">
+<input type="file" accept="image/*" id="imageInput">
 </div>
 
 <div class="card">
-  <div id="imageContainer">
-    <img id="image">
-    <div id="selection"></div>
-  </div>
+<div id="imageContainer">
+<img id="image">
+<div id="selection"></div>
+</div>
 </div>
 
 <div class="card">
-  <button id="scanBtn" class="primary hidden" onclick="scanArea()">🔍 Scan Area</button>
-  <div class="row">
-    <button class="success" onclick="scanFull()">📄 Scan Full</button>
-    <button class="gray" onclick="resetAll()">♻️ Reset</button>
-  </div>
-  <div id="status">⏳ Menyiapkan OCR…</div>
+<button class="primary" id="scanBtn" onclick="scanArea()" disabled>🔍 Scan Area</button>
+<div class="row">
+<button class="success" onclick="downloadDOCX()">⬇️ Word</button>
+<button class="danger" onclick="downloadPDF()">⬇️ PDF</button>
+<button class="gray" onclick="printDoc()">🖨️ Print</button>
+</div>
+<div id="status">⏳ Menyiapkan OCR engine…</div>
 </div>
 
 <div class="card">
-  <button class="warning" onclick="formatMakalah()">📘 Format Makalah</button>
+<textarea id="editor"></textarea>
 </div>
 
-<div class="card">
-  <textarea id="editor"></textarea>
-</div>
-
-<div class="card row">
-  <button class="success" onclick="downloadPDF()">⬇️ PDF</button>
-  <button class="primary" onclick="downloadDOCX()">⬇️ Word (.docx)</button>
+<div class="footer">
+Scan → Edit → Download → Print
 </div>
 
 </div>
 
 <script>
-/* ===================== TINYMCE WORD SETUP ===================== */
+/* ================= EDITOR ================= */
 tinymce.init({
   selector:'#editor',
-  height:650,
+  height:400,
   menubar:true,
-  plugins:[
-    'advlist','lists','table','pagebreak','fullscreen',
-    'wordcount','code','preview'
-  ],
-  toolbar:
-    'undo redo | styles | fontfamily fontsize | bold italic underline | ' +
-    'alignleft aligncenter alignright alignjustify | ' +
-    'bullist numlist | table pagebreak | fullscreen',
-  content_style: `
-    body {
-      font-family: "Times New Roman", serif;
-      font-size: 12pt;
-      width: 21cm;
-      margin: 2.5cm;
-    }
-  `
+  plugins:'lists table image link media code fullscreen',
+  toolbar:'undo redo | fontfamily fontsize | bold italic underline | forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist | table image link | fullscreen',
+  font_family_formats:'Times New Roman=times new roman;Arial=arial;Calibri=calibri;Verdana=verdana'
 });
 
-/* ===================== OCR ===================== */
+/* ================= OCR ================= */
 const img=document.getElementById("image");
 const container=document.getElementById("imageContainer");
 const selection=document.getElementById("selection");
 const scanBtn=document.getElementById("scanBtn");
 const statusText=document.getElementById("status");
 
-let worker,selecting=false,startX=0,startY=0;
+let startX=0,startY=0,selecting=false;
+let worker;
 
 (async()=>{
-  worker=await Tesseract.createWorker();
+  worker=await Tesseract.createWorker({
+    logger:m=>{
+      if(m.status==="recognizing text"){
+        statusText.innerText=`⏳ OCR ${Math.round(m.progress*100)}%`;
+      }
+    }
+  });
   await worker.loadLanguage("ind+eng");
   await worker.initialize("ind+eng");
-  statusText.innerText="✅ OCR siap";
+  statusText.innerText="✅ OCR siap digunakan";
 })();
 
 imageInput.onchange=e=>{
   img.src=URL.createObjectURL(e.target.files[0]);
 };
 
-container.onmousedown=e=>{
+function getPos(e){
+  const r=container.getBoundingClientRect();
+  const p=e.touches?e.touches[0]:e;
+  return{x:p.clientX-r.left,y:p.clientY-r.top};
+}
+
+container.addEventListener("mousedown",start);
+container.addEventListener("touchstart",start);
+function start(e){
+  e.preventDefault();
   selecting=true;
-  scanBtn.classList.add("hidden");
-  startX=e.offsetX;
-  startY=e.offsetY;
+  const p=getPos(e);
+  startX=p.x;startY=p.y;
   selection.style.display="block";
-};
+  selection.style.left=startX+"px";
+  selection.style.top=startY+"px";
+  selection.style.width=0;
+  selection.style.height=0;
+}
 
-container.onmousemove=e=>{
+container.addEventListener("mousemove",move);
+container.addEventListener("touchmove",move);
+function move(e){
   if(!selecting)return;
-  selection.style.left=Math.min(startX,e.offsetX)+"px";
-  selection.style.top=Math.min(startY,e.offsetY)+"px";
-  selection.style.width=Math.abs(e.offsetX-startX)+"px";
-  selection.style.height=Math.abs(e.offsetY-startY)+"px";
-};
+  const p=getPos(e);
+  selection.style.left=Math.min(startX,p.x)+"px";
+  selection.style.top=Math.min(startY,p.y)+"px";
+  selection.style.width=Math.abs(p.x-startX)+"px";
+  selection.style.height=Math.abs(p.y-startY)+"px";
+}
 
-container.onmouseup=()=>{
+container.addEventListener("mouseup",end);
+container.addEventListener("touchend",end);
+function end(){
   selecting=false;
-  if(selection.offsetWidth>20) scanBtn.classList.remove("hidden");
-};
+  scanBtn.disabled=false;
+}
 
 async function scanArea(){
-  statusText.innerText="⚡ Memindai…";
+  if(selection.offsetWidth<20)return alert("Blok teks dulu");
+  statusText.innerText="⏳ Memproses OCR…";
+
   const sx=img.naturalWidth/img.clientWidth;
   const sy=img.naturalHeight/img.clientHeight;
+
   const x=selection.offsetLeft*sx;
   const y=selection.offsetTop*sy;
   const w=selection.offsetWidth*sx;
   const h=selection.offsetHeight*sy;
 
   const c=document.createElement("canvas");
-  c.width=Math.min(w,800);
-  c.height=h*(c.width/w);
-  c.getContext("2d").drawImage(img,x,y,w,h,0,0,c.width,c.height);
+  c.width=w;c.height=h;
+  c.getContext("2d").drawImage(img,x,y,w,h,0,0,w,h);
 
   const {data}=await worker.recognize(c);
-  tinymce.activeEditor.insertContent(data.text.replace(/\n/g,"<p></p>"));
+  tinymce.activeEditor.insertContent(data.text.replace(/\n/g,"<br>"));
   statusText.innerText="✅ Scan selesai";
 }
 
-async function scanFull(){
-  statusText.innerText="⚡ Scan full…";
-  const c=document.createElement("canvas");
-  c.width=img.naturalWidth;
-  c.height=img.naturalHeight;
-  c.getContext("2d").drawImage(img,0,0);
-  const {data}=await worker.recognize(c);
-  tinymce.activeEditor.setContent(data.text.replace(/\n/g,"<p></p>"));
-  statusText.innerText="✅ Scan selesai";
+/* ================= EXPORT ================= */
+function downloadDOCX(){
+  const html=tinymce.activeEditor.getContent({format:'text'});
+  if(!html)return alert("Teks kosong");
+  const paras=html.split("\n").filter(p=>p.trim());
+  const doc=new docx.Document({
+    sections:[{children:paras.map(p=>new docx.Paragraph({
+      children:[new docx.TextRun({text:p,font:"Times New Roman",size:24})]
+    }))}]
+  });
+  docx.Packer.toBlob(doc).then(b=>saveAs(b,"hasil-ocr.docx"));
 }
 
-/* ===================== FORMAT MAKALAH ===================== */
-function formatMakalah(){
-  tinymce.activeEditor.getBody().style.lineHeight="1.5";
-  tinymce.activeEditor.getBody().style.textAlign="justify";
-}
-
-/* ===================== EXPORT ===================== */
 function downloadPDF(){
   const {jsPDF}=window.jspdf;
-  const pdf=new jsPDF("p","mm","a4");
-  pdf.text(
-    tinymce.activeEditor.getContent({format:"text"}),
-    20,20
-  );
-  pdf.save("dokumen-ocr.pdf");
+  const text=tinymce.activeEditor.getContent({format:'text'});
+  const pdf=new jsPDF();
+  const lines=pdf.splitTextToSize(text,180);
+  pdf.text(lines,10,10);
+  pdf.save("hasil-ocr.pdf");
 }
 
-function downloadDOCX(){
-  const text=tinymce.activeEditor.getContent({format:"text"});
-  const doc=new docx.Document({
-    sections:[{
-      headers:{default:new docx.Header({
-        children:[new docx.Paragraph("Smart OCR Lens")]
-      })},
-      footers:{default:new docx.Footer({
-        children:[new docx.Paragraph("Halaman")]
-      })},
-      children:text.split("\n").map(t=>
-        new docx.Paragraph({
-          children:[new docx.TextRun({
-            text:t,
-            font:"Times New Roman",
-            size:24
-          })],
-          spacing:{line:360}
-        })
-      )
-    }]
-  });
-  docx.Packer.toBlob(doc).then(b=>saveAs(b,"dokumen-ocr.docx"));
-}
-
-function resetAll(){
-  tinymce.activeEditor.setContent("");
-  selection.style.display="none";
+function printDoc(){
+  const c=tinymce.activeEditor.getContent();
+  const w=window.open("");
+  w.document.write(`
+    <html><head><style>
+    body{font-family:"Times New Roman";margin:2.5cm}
+    </style></head><body>${c}
+    <script>
+    window.onload=function(){window.print();window.close();}
+    <\/script></body></html>
+  `);
+  w.document.close();
 }
 </script>
 
