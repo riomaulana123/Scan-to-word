@@ -8,7 +8,7 @@
 <!-- OCR -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
-<!-- TinyMCE (WAJIB PAKAI API KEY) -->
+<!-- TinyMCE -->
 <script src="https://cdn.tiny.cloud/1/API_KEY_KAMU/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
 
 <!-- Export -->
@@ -68,7 +68,6 @@ button:disabled{opacity:.5}
 </div>
 
 <div class="footer">Scan → Edit → Download → Print</div>
-
 </div>
 
 <script>
@@ -77,9 +76,8 @@ tinymce.init({
   selector:'#editor',
   height:400,
   menubar:true,
-  plugins:'lists table image link media code fullscreen',
-  toolbar:'undo redo | fontfamily fontsize | bold italic underline | forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist | table image link | fullscreen',
-  font_family_formats:'Times New Roman=times new roman;Arial=arial;Calibri=calibri;Verdana=verdana'
+  plugins:'lists table link code fullscreen',
+  toolbar:'undo redo | bold italic underline | alignleft aligncenter alignright | bullist numlist | fullscreen'
 });
 
 /* ===== OCR ===== */
@@ -92,19 +90,25 @@ const imageInput=document.getElementById("imageInput");
 
 let startX=0,startY=0,selecting=false;
 let worker;
+let partialShown=false;
 
 (async()=>{
   worker=await Tesseract.createWorker({
     logger:m=>{
       if(m.status==="recognizing text"){
         statusText.innerText=`⏳ OCR ${Math.round(m.progress*100)}%`;
+        if(m.progress>0.2 && !partialShown){
+          partialShown=true;
+          tinymce.activeEditor.setContent("<em>⏳ Memuat teks…</em>");
+        }
       }
     }
   });
   await worker.loadLanguage("ind+eng");
   await worker.initialize("ind+eng");
   await worker.setParameters({
-    tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK
+    tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
+    preserve_interword_spaces: 1
   });
   statusText.innerText="✅ OCR siap digunakan";
 })();
@@ -154,6 +158,7 @@ function end(){
 async function scanArea(){
   if(selection.offsetWidth<20)return alert("Blok teks dulu");
 
+  partialShown=false;
   statusText.innerText="⏳ OCR berjalan, mohon tunggu…";
   scanBtn.disabled=true;
 
@@ -177,8 +182,20 @@ async function scanArea(){
   c.width=cw;c.height=ch;
   ctx.drawImage(img,x,y,w,h,0,0,cw,ch);
 
-  const {data}=await worker.recognize(c);
-  tinymce.activeEditor.insertContent(data.text.replace(/\n/g,"<br>"));
+  const result=await Promise.race([
+    worker.recognize(c),
+    new Promise((_,rej)=>setTimeout(()=>rej(),15000))
+  ]).catch(()=>{
+    statusText.innerText="⚠️ OCR berat, coba area lebih kecil";
+    scanBtn.disabled=false;
+    return null;
+  });
+
+  if(!result)return;
+
+  tinymce.activeEditor.setContent(
+    result.data.text.replace(/\n/g,"<br>")
+  );
 
   statusText.innerText="✅ Scan selesai";
   scanBtn.disabled=false;
@@ -190,9 +207,7 @@ function downloadDOCX(){
   if(!text)return alert("Teks kosong");
   const paras=text.split("\n").filter(p=>p.trim());
   const doc=new docx.Document({
-    sections:[{children:paras.map(p=>new docx.Paragraph({
-      children:[new docx.TextRun({text:p,font:"Times New Roman",size:24})]
-    }))}]
+    sections:[{children:paras.map(p=>new docx.Paragraph(p))}]
   });
   docx.Packer.toBlob(doc).then(b=>saveAs(b,"hasil-ocr.docx"));
 }
@@ -208,14 +223,7 @@ function downloadPDF(){
 function printDoc(){
   const c=tinymce.activeEditor.getContent();
   const w=window.open("");
-  w.document.write(`
-    <html><head><style>
-    body{font-family:"Times New Roman";margin:2.5cm}
-    </style></head><body>${c}
-    <script>
-    window.onload=function(){window.print();window.close();}
-    <\/script></body></html>
-  `);
+  w.document.write(`<html><body>${c}<script>window.onload=()=>{print();close()}</script></body></html>`);
   w.document.close();
 }
 </script>
