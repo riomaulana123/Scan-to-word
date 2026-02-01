@@ -5,17 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Smart OCR Lens Ultimate</title>
 
-<!-- OCR -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-
-<!-- Editor -->
 <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
-
-<!-- PDF -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
-<!-- WORD -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
 <style>
@@ -26,7 +19,7 @@ body{
   background:#eef3f9
 }
 .container{max-width:780px;margin:auto}
-h1{text-align:center;margin:10px 0}
+h1{text-align:center}
 .card{
   background:#fff;
   padding:14px;
@@ -48,8 +41,11 @@ button{
 .success{background:#198754;color:#fff}
 .warning{background:#fd7e14;color:#fff}
 .gray{background:#adb5bd}
+.hidden{display:none}
+
 .row{display:flex;gap:8px}
 .row button{flex:1}
+
 #imageContainer{
   position:relative;
   background:#000;
@@ -58,14 +54,17 @@ button{
   touch-action:none
 }
 #image{width:100%;display:block}
+
 #selection{
   position:absolute;
   border:2px dashed #00e5ff;
   background:rgba(0,229,255,.25);
   display:none
 }
+
 #status{text-align:center;font-size:14px;margin-top:6px}
 #editor{height:260px}
+
 textarea{
   width:100%;
   height:90px;
@@ -73,7 +72,7 @@ textarea{
   border-radius:10px;
   border:1px solid #ddd
 }
-.footer{text-align:center;font-size:12px;color:#777}
+
 select{
   width:100%;
   padding:10px;
@@ -86,7 +85,7 @@ select{
 <body>
 <div class="container">
 
-<h1>📸 Smart OCR Lens Ultimate</h1>
+<h1>📸 Smart OCR Lens</h1>
 
 <div class="card">
   <input type="file" accept="image/*" id="imageInput">
@@ -108,8 +107,9 @@ select{
 </div>
 
 <div class="card">
+  <button id="scanAreaBtn" class="primary hidden" onclick="scanArea()">🔍 Scan Area</button>
   <div class="row">
-    <button class="primary" onclick="scanFull()">📄 Scan Full</button>
+    <button class="success" onclick="scanFull()">📄 Scan Full</button>
     <button class="gray" onclick="resetAll()">♻️ Reset</button>
   </div>
   <div id="status">⏳ Menyiapkan OCR…</div>
@@ -128,10 +128,6 @@ select{
   <button class="warning" onclick="downloadWord()">⬇️ Download Word</button>
 </div>
 
-<div class="footer">
-  Smart OCR Lens • Auto Scan • Handwriting • Export
-</div>
-
 </div>
 
 <script>
@@ -140,9 +136,10 @@ const container=document.getElementById("imageContainer");
 const selection=document.getElementById("selection");
 const statusText=document.getElementById("status");
 const ocrResult=document.getElementById("ocrResult");
+const scanAreaBtn=document.getElementById("scanAreaBtn");
 const mode=document.getElementById("mode");
-const quill=new Quill('#editor',{theme:'snow'});
 
+const quill=new Quill('#editor',{theme:'snow'});
 let worker,selecting=false,startX=0,startY=0;
 
 (async()=>{
@@ -155,10 +152,10 @@ let worker,selecting=false,startX=0,startY=0;
 
 imageInput.onchange=e=>{
   img.src=URL.createObjectURL(e.target.files[0]);
+  resetSelection();
   statusText.innerText="📷 Gambar dimuat";
 };
 
-/* === AREA SELECT + AUTO SCAN === */
 function pos(e){
   const r=container.getBoundingClientRect();
   const p=e.touches?e.touches[0]:e;
@@ -166,8 +163,8 @@ function pos(e){
 }
 
 container.onmousedown=container.ontouchstart=e=>{
-  e.preventDefault();
   selecting=true;
+  scanAreaBtn.classList.add("hidden");
   const p=pos(e);
   startX=p.x;startY=p.y;
   selection.style.display="block";
@@ -183,20 +180,20 @@ container.onmousemove=container.ontouchmove=e=>{
 };
 
 container.onmouseup=container.ontouchend=()=>{
-  if(selecting && selection.offsetWidth>10){
-    scanArea(); // AUTO SCAN
-  }
   selecting=false;
+  if(selection.offsetWidth>15 && selection.offsetHeight>15){
+    scanAreaBtn.classList.remove("hidden");
+    statusText.innerText="✂️ Area siap dipindai";
+  }
 };
 
-/* === OCR AREA === */
 async function scanArea(){
+  scanAreaBtn.classList.add("hidden");
   statusText.innerText="⚡ Memindai area…";
-  const idx=quill.getLength();
-  quill.insertText(idx,"⏳ Memindai teks...\n");
 
   const sx=img.naturalWidth/img.clientWidth;
   const sy=img.naturalHeight/img.clientHeight;
+
   const x=selection.offsetLeft*sx;
   const y=selection.offsetTop*sy;
   const w=selection.offsetWidth*sx;
@@ -213,18 +210,13 @@ async function scanArea(){
     tessedit_pageseg_mode: mode.value==="fast"?11:6
   });
 
-  quill.deleteText(idx,18);
-  quill.insertText(idx,data.text+"\n");
+  quill.insertText(quill.getLength(),data.text+"\n");
   ocrResult.value+=data.text+"\n";
   statusText.innerText="✅ Scan area selesai";
 }
 
-/* === FULL SCAN === */
 async function scanFull(){
   statusText.innerText="⚡ Scan full…";
-  const idx=quill.getLength();
-  quill.insertText(idx,"⏳ Memindai teks...\n");
-
   const c=document.createElement("canvas");
   const scale=Math.min(1,900/img.naturalWidth);
   c.width=img.naturalWidth*scale;
@@ -235,13 +227,11 @@ async function scanFull(){
     tessedit_pageseg_mode: mode.value==="fast"?6:3
   });
 
-  quill.deleteText(idx,18);
-  quill.insertText(idx,data.text+"\n");
+  quill.insertText(quill.getLength(),data.text+"\n");
   ocrResult.value+=data.text+"\n";
   statusText.innerText="✅ Scan selesai";
 }
 
-/* === EXPORT PDF === */
 function downloadPDF(){
   const {jsPDF}=window.jspdf;
   const pdf=new jsPDF();
@@ -249,7 +239,6 @@ function downloadPDF(){
   pdf.save("hasil-ocr.pdf");
 }
 
-/* === EXPORT WORD === */
 function downloadWord(){
   const blob=new Blob(
     ["\ufeff"+quill.getText()],
@@ -258,11 +247,15 @@ function downloadWord(){
   saveAs(blob,"hasil-ocr.doc");
 }
 
-/* === RESET === */
+function resetSelection(){
+  selection.style.display="none";
+  scanAreaBtn.classList.add("hidden");
+}
+
 function resetAll(){
   quill.setText("");
   ocrResult.value="";
-  selection.style.display="none";
+  resetSelection();
   statusText.innerText="♻️ Reset selesai";
 }
 </script>
