@@ -13,6 +13,7 @@
 <script src="https://cdn.jsdelivr.net/npm/handsontable@13.0.0/dist/handsontable.full.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@13.0.0/dist/handsontable.full.min.css"/>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -26,12 +27,15 @@ header h1{font-size:18px;margin:0}
 .tabs button.active{background:#2563eb;color:white}
 .container{padding:12px}
 .card{background:white;padding:12px;border-radius:14px;box-shadow:0 6px 16px rgba(0,0,0,.07);margin-bottom:12px}
-button{padding:10px;border:none;border-radius:10px;font-weight:600;margin:6px 0;width:100%}
+button{padding:8px;border:none;border-radius:8px;font-weight:600;margin:4px;width:100%}
 .primary{background:#2563eb;color:white}
 .success{background:#16a34a;color:white}
 .danger{background:#dc2626;color:white}
 .gray{background:#6b7280;color:white}
 .hidden{display:none}
+.sheet-tabs{display:flex;margin-top:8px}
+.sheet-tabs button{flex:1;background:#e5e7eb}
+.sheet-tabs button.active{background:#2563eb;color:white}
 #imageContainer{position:relative;margin-top:10px;touch-action:none;user-select:none}
 #previewImage{width:100%;border-radius:12px;pointer-events:none}
 #selectionBox{position:absolute;border:2px dashed #2563eb;background:rgba(37,99,235,.25);display:none}
@@ -54,7 +58,6 @@ button{padding:10px;border:none;border-radius:10px;font-weight:600;margin:6px 0;
 
 <!-- WORD MODE -->
 <div id="wordMode">
-
 <div class="card">
 <input type="file" accept="image/*" id="imageInput">
 <div id="imageContainer">
@@ -74,19 +77,21 @@ button{padding:10px;border:none;border-radius:10px;font-weight:600;margin:6px 0;
 <button class="gray" onclick="printDoc()">🖨️ Print</button>
 <button class="primary" onclick="downloadDOCX()">⬇️ Word</button>
 </div>
-
 </div>
 
 <!-- EXCEL MODE -->
 <div id="excelMode" class="hidden">
 
 <div class="card">
-<button onclick="addRow()" class="primary">➕ Tambah Baris</button>
-<button onclick="addCol()" class="primary">➕ Tambah Kolom</button>
+<button onclick="addRow()" class="primary">➕ Baris</button>
+<button onclick="addCol()" class="primary">➕ Kolom</button>
+<button onclick="exportExcel()" class="success">⬇️ Export XLSX</button>
+<button onclick="addSheet()" class="gray">➕ Sheet</button>
 </div>
 
 <div class="card">
 <div id="spreadsheet"></div>
+<div class="sheet-tabs" id="sheetTabs"></div>
 </div>
 
 </div>
@@ -102,88 +107,109 @@ button{padding:10px;border:none;border-radius:10px;font-weight:600;margin:6px 0;
 
 <script>
 
-/* ========= QUILL ========= */
-let quill=new Quill('#editor',{
-theme:'snow',
-modules:{toolbar:[
-['bold','italic','underline'],
-[{align:[]}],
-[{list:'ordered'},{list:'bullet'}],
-['clean']
-]}
-});
+/* WORD */
+let quill=new Quill('#editor',{theme:'snow'});
 
-/* ========= EXCEL (KOSONG TOTAL) ========= */
+/* ===== EXCEL MULTI SHEET ===== */
+let sheets={};
+let currentSheet="Sheet1";
 let hot;
 
+function createEmptyData(){
+return Array.from({length:100},()=>Array(26).fill(null));
+}
+
 function initExcel(){
+if(hot) hot.destroy();
 hot=new Handsontable(document.getElementById('spreadsheet'),{
-data: Array.from({length:100},()=>Array(26).fill(null)),
+data:sheets[currentSheet],
 rowHeaders:true,
 colHeaders:true,
 width:'100%',
-height:500,
-stretchH:'all',
+height:450,
 manualColumnResize:true,
 manualRowResize:true,
 filters:true,
 dropdownMenu:true,
 contextMenu:true,
-copyPaste:true,
-fillHandle:true,
-autoWrapRow:true,
-autoWrapCol:true,
-fixedRowsTop:1,
+formulas:true,
 licenseKey:'non-commercial-and-evaluation'
 });
+renderSheetTabs();
 }
 
-setTimeout(()=>{initExcel();},500);
+function addSheet(){
+let name="Sheet"+(Object.keys(sheets).length+1);
+sheets[name]=createEmptyData();
+currentSheet=name;
+initExcel();
+}
+
+function switchSheet(name){
+currentSheet=name;
+initExcel();
+}
+
+function renderSheetTabs(){
+let html="";
+Object.keys(sheets).forEach(name=>{
+html+=`<button onclick="switchSheet('${name}')" class="${name===currentSheet?'active':''}">${name}</button>`;
+});
+document.getElementById("sheetTabs").innerHTML=html;
+}
 
 function addRow(){ hot.alter('insert_row'); }
 function addCol(){ hot.alter('insert_col'); }
 
-/* ========= SWITCH ========= */
-function switchMode(mode){
-document.getElementById('wordMode').classList.add('hidden');
-document.getElementById('excelMode').classList.add('hidden');
-document.getElementById('projectMode').classList.add('hidden');
-if(mode==='word')document.getElementById('wordMode').classList.remove('hidden');
-if(mode==='excel')document.getElementById('excelMode').classList.remove('hidden');
-if(mode==='projects'){document.getElementById('projectMode').classList.remove('hidden');loadProjects();}
+function exportExcel(){
+let wb=XLSX.utils.book_new();
+Object.keys(sheets).forEach(name=>{
+let ws=XLSX.utils.aoa_to_sheet(sheets[name]);
+XLSX.utils.book_append_sheet(wb,ws,name);
+});
+XLSX.writeFile(wb,"SmartOCR.xlsx");
 }
 
-/* ========= OCR ========= */
+setTimeout(()=>{
+sheets["Sheet1"]=createEmptyData();
+initExcel();
+},500);
+
+/* MODE SWITCH */
+function switchMode(mode){
+wordMode.classList.add('hidden');
+excelMode.classList.add('hidden');
+projectMode.classList.add('hidden');
+if(mode==='word') wordMode.classList.remove('hidden');
+if(mode==='excel') excelMode.classList.remove('hidden');
+if(mode==='projects'){ projectMode.classList.remove('hidden'); loadProjects(); }
+}
+
+/* OCR */
 let worker;
 (async()=>{
 worker=await Tesseract.createWorker();
 await worker.loadLanguage('ind+eng');
 await worker.initialize('ind+eng');
-await worker.setParameters({tessedit_pageseg_mode:6});
 })();
 
 const img=document.getElementById("previewImage");
 const container=document.getElementById("imageContainer");
 const box=document.getElementById("selectionBox");
-let startX=0,startY=0,selecting=false;
+let startX,startY,selecting=false;
 
 imageInput.onchange=e=>{
-const file=e.target.files[0];
-if(file) img.src=URL.createObjectURL(file);
+if(e.target.files[0]) img.src=URL.createObjectURL(e.target.files[0]);
 };
-
-function getPos(e){
-const rect=container.getBoundingClientRect();
-const t=e.touches?e.touches[0]:e;
-return{x:t.clientX-rect.left,y:t.clientY-rect.top};
-}
 
 container.addEventListener("touchstart",e=>{
 if(!img.src)return;
 e.preventDefault();
 selecting=true;
-const p=getPos(e);
-startX=p.x;startY=p.y;
+let r=container.getBoundingClientRect();
+let t=e.touches[0];
+startX=t.clientX-r.left;
+startY=t.clientY-r.top;
 box.style.display="block";
 box.style.left=startX+"px";
 box.style.top=startY+"px";
@@ -194,54 +220,39 @@ box.style.height=0;
 container.addEventListener("touchmove",e=>{
 if(!selecting)return;
 e.preventDefault();
-const p=getPos(e);
-box.style.left=Math.min(startX,p.x)+"px";
-box.style.top=Math.min(startY,p.y)+"px";
-box.style.width=Math.abs(p.x-startX)+"px";
-box.style.height=Math.abs(p.y-startY)+"px";
+let r=container.getBoundingClientRect();
+let t=e.touches[0];
+let x=t.clientX-r.left;
+let y=t.clientY-r.top;
+box.style.left=Math.min(startX,x)+"px";
+box.style.top=Math.min(startY,y)+"px";
+box.style.width=Math.abs(x-startX)+"px";
+box.style.height=Math.abs(y-startY)+"px";
 },{passive:false});
 
 container.addEventListener("touchend",()=>selecting=false);
 
 async function scanSelected(){
 if(box.offsetWidth<20)return alert("Blok area dulu");
-
-const scaleX=img.naturalWidth/img.clientWidth;
-const scaleY=img.naturalHeight/img.clientHeight;
-
-const x=box.offsetLeft*scaleX;
-const y=box.offsetTop*scaleY;
-const w=box.offsetWidth*scaleX;
-const h=box.offsetHeight*scaleY;
-
-const canvas=document.createElement("canvas");
-canvas.width=w;canvas.height=h;
-canvas.getContext("2d").drawImage(img,x,y,w,h,0,0,w,h);
-
-const {data}=await worker.recognize(canvas);
-let text=data.text.trim();
-
-let formatted=text.split("\n\n")
-.map(p=>`<p>${p.replace(/\n/g,"<br>")}</p>`)
-.join("");
-
-let current=quill.root.innerHTML.trim();
-
-if(current==="<p><br></p>"||current===""){
-quill.root.innerHTML=formatted;
-}else{
-quill.root.innerHTML+="<p><br></p>"+formatted;
-}
-
+let scaleX=img.naturalWidth/img.clientWidth;
+let scaleY=img.naturalHeight/img.clientHeight;
+let canvas=document.createElement("canvas");
+canvas.width=box.offsetWidth*scaleX;
+canvas.height=box.offsetHeight*scaleY;
+canvas.getContext("2d").drawImage(
+img,
+box.offsetLeft*scaleX,
+box.offsetTop*scaleY,
+canvas.width,
+canvas.height,
+0,0,canvas.width,canvas.height
+);
+let {data}=await worker.recognize(canvas);
+quill.root.innerHTML+="<p>"+data.text+"</p>";
 box.style.display="none";
 }
 
-/* ========= EXPORT ========= */
-function previewDoc(){
-const w=window.open("");
-w.document.write(`<html><body>${quill.root.innerHTML}</body></html>`);
-}
-
+/* EXPORT WORD */
 function downloadPDF(){
 const {jsPDF}=window.jspdf;
 const pdf=new jsPDF();
@@ -261,7 +272,12 @@ const w=window.open("");
 w.document.write(`<html><body onload="window.print();window.close()">${quill.root.innerHTML}</body></html>`);
 }
 
-/* ========= PROJECT ========= */
+function previewDoc(){
+const w=window.open("");
+w.document.write(`<html><body>${quill.root.innerHTML}</body></html>`);
+}
+
+/* PROJECT */
 function saveProject(){
 let projects=JSON.parse(localStorage.getItem("projects")||"[]");
 projects.unshift({date:new Date().toLocaleString(),content:quill.root.innerHTML});
@@ -273,11 +289,9 @@ function loadProjects(){
 let projects=JSON.parse(localStorage.getItem("projects")||"[]");
 let html="";
 projects.forEach((p,i)=>{
-html+=`<div style="margin-bottom:8px">
-<button onclick="openProject(${i})">${p.date}</button>
-</div>`;
+html+=`<button onclick="openProject(${i})">${p.date}</button>`;
 });
-document.getElementById("projectList").innerHTML=html||"Belum ada projek";
+projectList.innerHTML=html||"Belum ada projek";
 }
 
 function openProject(i){
