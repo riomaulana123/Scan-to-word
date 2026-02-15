@@ -52,6 +52,7 @@ button{padding:10px;border:none;border-radius:10px;font-weight:600;margin:6px 0;
 
 <div class="container">
 
+<!-- WORD MODE -->
 <div id="wordMode">
 
 <div class="card">
@@ -76,12 +77,21 @@ button{padding:10px;border:none;border-radius:10px;font-weight:600;margin:6px 0;
 
 </div>
 
+<!-- EXCEL MODE -->
 <div id="excelMode" class="hidden">
+
+<div class="card">
+<button onclick="addRow()" class="primary">➕ Tambah Baris</button>
+<button onclick="addCol()" class="primary">➕ Tambah Kolom</button>
+</div>
+
 <div class="card">
 <div id="spreadsheet"></div>
 </div>
+
 </div>
 
+<!-- PROJECT MODE -->
 <div id="projectMode" class="hidden">
 <div class="card">
 <div id="projectList"></div>
@@ -103,16 +113,35 @@ modules:{toolbar:[
 ]}
 });
 
-/* ========= EXCEL ========= */
+/* ========= EXCEL PRO ========= */
 let hot;
-setTimeout(()=>{
+
+function initExcel(){
 hot=new Handsontable(document.getElementById('spreadsheet'),{
-data:Handsontable.helper.createSpreadsheetData(20,10),
+data:Handsontable.helper.createSpreadsheetData(50,20),
 rowHeaders:true,
 colHeaders:true,
+width:'100%',
+height:500,
+stretchH:'all',
+manualColumnResize:true,
+manualRowResize:true,
+filters:true,
+dropdownMenu:true,
+contextMenu:true,
+copyPaste:true,
+fillHandle:true,
+autoWrapRow:true,
+autoWrapCol:true,
+fixedRowsTop:1,
 licenseKey:'non-commercial-and-evaluation'
 });
-},500);
+}
+
+setTimeout(()=>{initExcel();},500);
+
+function addRow(){ hot.alter('insert_row'); }
+function addCol(){ hot.alter('insert_col'); }
 
 /* ========= SWITCH ========= */
 function switchMode(mode){
@@ -130,13 +159,10 @@ let worker;
 worker=await Tesseract.createWorker();
 await worker.loadLanguage('ind+eng');
 await worker.initialize('ind+eng');
-await worker.setParameters({
-tessedit_pageseg_mode:6,
-preserve_interword_spaces:1
-});
+await worker.setParameters({tessedit_pageseg_mode:6});
 })();
 
-/* ========= AREA SELECT ========= */
+/* ========= OCR SELECT ========= */
 const img=document.getElementById("previewImage");
 const container=document.getElementById("imageContainer");
 const box=document.getElementById("selectionBox");
@@ -178,7 +204,6 @@ box.style.height=Math.abs(p.y-startY)+"px";
 
 container.addEventListener("touchend",()=>selecting=false);
 
-/* ========= OCR MULTI SCAN FIX ========= */
 async function scanSelected(){
 if(box.offsetWidth<20)return alert("Blok area dulu");
 
@@ -195,53 +220,29 @@ canvas.width=w;canvas.height=h;
 canvas.getContext("2d").drawImage(img,x,y,w,h,0,0,w,h);
 
 const {data}=await worker.recognize(canvas);
+let text=data.text.trim();
 
-let text=data.text;
-
-/* ==== FORMAT ==== */
-text=text.replace(/[ \t]+/g," ");
-text=text.replace(/([a-zA-Z0-9,])\n([a-z])/g,"$1 $2");
-text=text.replace(/\n-/g,"\n• ");
-text=text.replace(/\n{3,}/g,"\n\n");
-text=text.trim();
-
-let formatted=text
-.split("\n\n")
+let formatted=text.split("\n\n")
 .map(p=>`<p>${p.replace(/\n/g,"<br>")}</p>`)
 .join("");
 
-/* ==== TAMBAHKAN TANPA HAPUS ==== */
 let current=quill.root.innerHTML.trim();
 
 if(current==="<p><br></p>"||current===""){
 quill.root.innerHTML=formatted;
 }else{
-quill.root.innerHTML+= "<p><br></p>"+formatted;
+quill.root.innerHTML+="<p><br></p>"+formatted;
 }
 
 box.style.display="none";
 }
 
-/* ========= PREVIEW ========= */
+/* ========= EXPORT ========= */
 function previewDoc(){
-const content=quill.root.innerHTML;
 const w=window.open("");
-w.document.write(`
-<html>
-<head>
-<style>
-body{background:#eee;padding:20px}
-#a4{width:21cm;min-height:29.7cm;background:white;margin:auto;padding:2.5cm;font-family:"Times New Roman"}
-</style>
-</head>
-<body>
-<div id="a4">${content}</div>
-</body>
-</html>
-`);
+w.document.write(`<html><body>${quill.root.innerHTML}</body></html>`);
 }
 
-/* ========= EXPORT ========= */
 function downloadPDF(){
 const {jsPDF}=window.jspdf;
 const pdf=new jsPDF();
