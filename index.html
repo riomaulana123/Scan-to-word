@@ -8,8 +8,9 @@
 <!-- OCR -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
-<!-- TinyMCE -->
-<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js"></script>
+<!-- Quill Editor (NO API KEY) -->
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
 
 <!-- Spreadsheet -->
 <script src="https://cdn.jsdelivr.net/npm/handsontable@13.0.0/dist/handsontable.full.min.js"></script>
@@ -46,12 +47,22 @@ font-weight:600;margin:6px 0;width:100%
 .danger{background:#dc2626;color:white}
 .gray{background:#6b7280;color:white}
 .hidden{display:none}
-#imageContainer{position:relative;margin-top:10px}
-#previewImage{width:100%;border-radius:12px}
+
+#imageContainer{
+position:relative;
+margin-top:10px;
+touch-action:none;
+user-select:none;
+}
+#previewImage{
+width:100%;
+border-radius:12px;
+pointer-events:none;
+}
 #selectionBox{
 position:absolute;
 border:2px dashed #2563eb;
-background:rgba(37,99,235,.2);
+background:rgba(37,99,235,.25);
 display:none
 }
 </style>
@@ -64,7 +75,7 @@ display:none
 </header>
 
 <div class="tabs">
-<button onclick="switchMode('word')" id="wordBtn" class="active">📄 Word</button>
+<button onclick="switchMode('word')" class="active">📄 Word</button>
 <button onclick="switchMode('excel')">📊 Excel</button>
 <button onclick="switchMode('projects')">📁 Projek Saya</button>
 </div>
@@ -84,7 +95,7 @@ display:none
 </div>
 
 <div class="card">
-<textarea id="editor"></textarea>
+<div id="editor" style="height:400px;"></div>
 </div>
 
 <div class="card">
@@ -114,15 +125,20 @@ display:none
 
 <script>
 
-/* ===== TINYMCE ===== */
-tinymce.init({
-selector:'#editor',
-height:400,
-plugins:'lists table link image code fullscreen',
-toolbar:'undo redo | bold italic underline | alignleft aligncenter alignright | bullist numlist | table | fullscreen'
+/* ========= QUILL ========= */
+let quill = new Quill('#editor', {
+theme:'snow',
+modules:{
+toolbar:[
+['bold','italic','underline'],
+[{align:[]}],
+[{list:'ordered'},{list:'bullet'}],
+['clean']
+]
+}
 });
 
-/* ===== HANDSONTABLE ===== */
+/* ========= EXCEL ========= */
 let hot;
 setTimeout(()=>{
 hot = new Handsontable(document.getElementById('spreadsheet'), {
@@ -131,35 +147,31 @@ rowHeaders:true,
 colHeaders:true,
 licenseKey:'non-commercial-and-evaluation'
 });
-},800);
+},500);
 
-/* ===== SWITCH MODE ===== */
+/* ========= SWITCH ========= */
 function switchMode(mode){
 document.getElementById('wordMode').classList.add('hidden');
 document.getElementById('excelMode').classList.add('hidden');
 document.getElementById('projectMode').classList.add('hidden');
-
 if(mode==='word')document.getElementById('wordMode').classList.remove('hidden');
 if(mode==='excel')document.getElementById('excelMode').classList.remove('hidden');
-if(mode==='projects'){
-document.getElementById('projectMode').classList.remove('hidden');
-loadProjects();
-}
+if(mode==='projects'){document.getElementById('projectMode').classList.remove('hidden');loadProjects();}
 }
 
-/* ===== OCR INIT ===== */
+/* ========= OCR INIT ========= */
 let worker;
 (async()=>{
-worker = await Tesseract.createWorker();
+worker=await Tesseract.createWorker();
 await worker.loadLanguage('eng');
 await worker.initialize('eng');
 })();
 
-/* ===== AREA SELECT OCR ===== */
+/* ========= AREA OCR FIX HP ========= */
 const img=document.getElementById("previewImage");
 const container=document.getElementById("imageContainer");
 const box=document.getElementById("selectionBox");
-let startX,startY,isSelecting=false;
+let startX=0,startY=0,selecting=false;
 
 imageInput.onchange=e=>{
 const file=e.target.files[0];
@@ -168,31 +180,34 @@ if(file) img.src=URL.createObjectURL(file);
 
 function getPos(e){
 const rect=container.getBoundingClientRect();
-return {x:e.clientX-rect.left,y:e.clientY-rect.top};
+const t=e.touches?e.touches[0]:e;
+return{x:t.clientX-rect.left,y:t.clientY-rect.top};
 }
 
-container.addEventListener("mousedown",e=>{
+container.addEventListener("touchstart",e=>{
 if(!img.src)return;
-isSelecting=true;
+e.preventDefault();
+selecting=true;
 const p=getPos(e);
 startX=p.x;startY=p.y;
 box.style.display="block";
 box.style.left=startX+"px";
 box.style.top=startY+"px";
-box.style.width="0px";
-box.style.height="0px";
-});
+box.style.width=0;
+box.style.height=0;
+},{passive:false});
 
-container.addEventListener("mousemove",e=>{
-if(!isSelecting)return;
+container.addEventListener("touchmove",e=>{
+if(!selecting)return;
+e.preventDefault();
 const p=getPos(e);
 box.style.left=Math.min(startX,p.x)+"px";
 box.style.top=Math.min(startY,p.y)+"px";
 box.style.width=Math.abs(p.x-startX)+"px";
 box.style.height=Math.abs(p.y-startY)+"px";
-});
+},{passive:false});
 
-container.addEventListener("mouseup",()=>isSelecting=false);
+container.addEventListener("touchend",()=>selecting=false);
 
 async function scanSelected(){
 if(box.offsetWidth<20)return alert("Blok area dulu");
@@ -210,12 +225,12 @@ canvas.width=w;canvas.height=h;
 canvas.getContext("2d").drawImage(img,x,y,w,h,0,0,w,h);
 
 const {data}=await worker.recognize(canvas);
-tinymce.activeEditor.setContent(data.text.replace(/\n/g,"<br>"));
+quill.root.innerHTML=data.text.replace(/\n/g,"<br>");
 }
 
-/* ===== PREVIEW ===== */
+/* ========= PREVIEW ========= */
 function previewDoc(){
-const content=tinymce.activeEditor.getContent();
+const content=quill.root.innerHTML;
 const w=window.open("");
 w.document.write(`
 <html>
@@ -233,33 +248,30 @@ margin:auto;padding:2.5cm;font-family:"Times New Roman"}
 `);
 }
 
-/* ===== EXPORT ===== */
+/* ========= EXPORT ========= */
+function downloadPDF(){
+const {jsPDF}=window.jspdf;
+const pdf=new jsPDF();
+pdf.text(quill.getText(),10,10);
+pdf.save("dokumen.pdf");
+}
+
 function downloadDOCX(){
-const text=tinymce.activeEditor.getContent({format:'text'});
 const doc=new docx.Document({
-sections:[{children:[new docx.Paragraph(text)]}]
+sections:[{children:[new docx.Paragraph(quill.getText())]}]
 });
 docx.Packer.toBlob(doc).then(b=>saveAs(b,"dokumen.docx"));
 }
 
-function downloadPDF(){
-const {jsPDF}=window.jspdf;
-const pdf=new jsPDF();
-pdf.text(tinymce.activeEditor.getContent({format:'text'}),10,10);
-pdf.save("dokumen.pdf");
-}
-
 function printDoc(){
-const content=tinymce.activeEditor.getContent();
 const w=window.open("");
-w.document.write(`<html><body onload="window.print();window.close()">${content}</body></html>`);
+w.document.write(`<html><body onload="window.print();window.close()">${quill.root.innerHTML}</body></html>`);
 }
 
-/* ===== PROJECT SAVE ===== */
+/* ========= PROJECT ========= */
 function saveProject(){
-const content=tinymce.activeEditor.getContent();
 let projects=JSON.parse(localStorage.getItem("projects")||"[]");
-projects.unshift({date:new Date().toLocaleString(),content});
+projects.unshift({date:new Date().toLocaleString(),content:quill.root.innerHTML});
 localStorage.setItem("projects",JSON.stringify(projects));
 alert("Tersimpan!");
 }
@@ -277,7 +289,7 @@ document.getElementById("projectList").innerHTML=html||"Belum ada projek";
 
 function openProject(i){
 let projects=JSON.parse(localStorage.getItem("projects"));
-tinymce.activeEditor.setContent(projects[i].content);
+quill.root.innerHTML=projects[i].content;
 switchMode('word');
 }
 
