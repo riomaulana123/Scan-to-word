@@ -113,12 +113,12 @@ modules:{toolbar:[
 ]}
 });
 
-/* ========= EXCEL PRO ========= */
+/* ========= EXCEL (KOSONG TOTAL) ========= */
 let hot;
 
 function initExcel(){
 hot=new Handsontable(document.getElementById('spreadsheet'),{
-data:Handsontable.helper.createSpreadsheetData(50,20),
+data: Array.from({length:100},()=>Array(26).fill(null)),
 rowHeaders:true,
 colHeaders:true,
 width:'100%',
@@ -153,7 +153,7 @@ if(mode==='excel')document.getElementById('excelMode').classList.remove('hidden'
 if(mode==='projects'){document.getElementById('projectMode').classList.remove('hidden');loadProjects();}
 }
 
-/* ========= OCR WORKER ========= */
+/* ========= OCR ========= */
 let worker;
 (async()=>{
 worker=await Tesseract.createWorker();
@@ -162,7 +162,6 @@ await worker.initialize('ind+eng');
 await worker.setParameters({tessedit_pageseg_mode:6});
 })();
 
-/* ========= OCR SELECT ========= */
 const img=document.getElementById("previewImage");
 const container=document.getElementById("imageContainer");
 const box=document.getElementById("selectionBox");
