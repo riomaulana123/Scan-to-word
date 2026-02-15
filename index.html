@@ -93,7 +93,7 @@ button{padding:10px;border:none;border-radius:10px;font-weight:600;margin:6px 0;
 <script>
 
 /* ========= QUILL ========= */
-let quill = new Quill('#editor',{
+let quill=new Quill('#editor',{
 theme:'snow',
 modules:{toolbar:[
 ['bold','italic','underline'],
@@ -136,7 +136,7 @@ preserve_interword_spaces:1
 });
 })();
 
-/* ========= AREA OCR ========= */
+/* ========= AREA SELECT ========= */
 const img=document.getElementById("previewImage");
 const container=document.getElementById("imageContainer");
 const box=document.getElementById("selectionBox");
@@ -178,11 +178,9 @@ box.style.height=Math.abs(p.y-startY)+"px";
 
 container.addEventListener("touchend",()=>selecting=false);
 
-/* ========= OCR RAPI FIX ========= */
+/* ========= OCR MULTI SCAN FIX ========= */
 async function scanSelected(){
 if(box.offsetWidth<20)return alert("Blok area dulu");
-
-quill.setText("Scanning...");
 
 const scaleX=img.naturalWidth/img.clientWidth;
 const scaleY=img.naturalHeight/img.clientHeight;
@@ -200,7 +198,7 @@ const {data}=await worker.recognize(canvas);
 
 let text=data.text;
 
-/* ==== AUTO FORMAT ==== */
+/* ==== FORMAT ==== */
 text=text.replace(/[ \t]+/g," ");
 text=text.replace(/([a-zA-Z0-9,])\n([a-z])/g,"$1 $2");
 text=text.replace(/\n-/g,"\n• ");
@@ -212,7 +210,16 @@ let formatted=text
 .map(p=>`<p>${p.replace(/\n/g,"<br>")}</p>`)
 .join("");
 
+/* ==== TAMBAHKAN TANPA HAPUS ==== */
+let current=quill.root.innerHTML.trim();
+
+if(current==="<p><br></p>"||current===""){
 quill.root.innerHTML=formatted;
+}else{
+quill.root.innerHTML+= "<p><br></p>"+formatted;
+}
+
+box.style.display="none";
 }
 
 /* ========= PREVIEW ========= */
