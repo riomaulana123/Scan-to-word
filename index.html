@@ -3,13 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Smart OCR Lens Pro</title>
+<title>Smart OCR Lens Pro+</title>
 
 <!-- OCR -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <!-- TinyMCE -->
-<script src="https://cdn.tiny.cloud/1/API_KEY_KAMU/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js"></script>
+
+<!-- Spreadsheet -->
+<script src="https://cdn.jsdelivr.net/npm/handsontable@13.0.0/dist/handsontable.full.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@13.0.0/dist/handsontable.full.min.css"/>
 
 <!-- Export -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.min.js"></script>
@@ -17,215 +21,212 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
-*{box-sizing:border-box}
-body{font-family:system-ui,Arial;background:#eef2f7;margin:0;padding:12px}
-.container{max-width:900px;margin:auto}
-.card{background:#fff;border-radius:14px;padding:12px;margin-bottom:12px;box-shadow:0 8px 20px rgba(0,0,0,.08)}
-h1{text-align:center}
-#imageContainer{position:relative;border-radius:12px;overflow:hidden;background:#000;touch-action:none}
-#image{width:100%;display:block}
-#selection{position:absolute;border:2px dashed #00c3ff;background:rgba(0,195,255,.25);display:none}
-button{width:100%;padding:12px;margin-top:6px;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer}
-.primary{background:#0d6efd;color:#fff}
-.success{background:#198754;color:#fff}
-.danger{background:#dc3545;color:#fff}
-.gray{background:#6c757d;color:#fff}
-button:disabled{opacity:.5}
-.row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
-#status{text-align:center;font-size:14px;color:#555}
-.footer{text-align:center;font-size:12px;color:#777}
+body{margin:0;font-family:system-ui;background:#f4f6fb}
+header{
+background:#111827;color:white;padding:14px;
+display:flex;justify-content:space-between;align-items:center
+}
+header h1{font-size:18px;margin:0}
+.tabs{display:flex;background:white}
+.tabs button{
+flex:1;padding:12px;border:none;background:#e5e7eb;font-weight:600
+}
+.tabs button.active{background:#2563eb;color:white}
+.container{padding:12px}
+.card{
+background:white;padding:12px;border-radius:14px;
+box-shadow:0 6px 16px rgba(0,0,0,.07);margin-bottom:12px
+}
+button{
+padding:10px;border:none;border-radius:10px;
+font-weight:600;margin:4px 0
+}
+.primary{background:#2563eb;color:white}
+.success{background:#16a34a;color:white}
+.danger{background:#dc2626;color:white}
+.gray{background:#6b7280;color:white}
+.hidden{display:none}
+#a4Preview{
+width:21cm;min-height:29.7cm;
+background:white;margin:auto;padding:2.5cm;
+box-shadow:0 0 15px rgba(0,0,0,.15)
+}
 </style>
 </head>
-
 <body>
+
+<header>
+<h1>🚀 Smart OCR Lens Pro+</h1>
+<button onclick="saveProject()" class="success">💾 Simpan</button>
+</header>
+
+<div class="tabs">
+<button id="wordTab" class="active" onclick="switchMode('word')">📄 Word</button>
+<button onclick="switchMode('excel')">📊 Excel</button>
+<button onclick="switchMode('projects')">📁 Projek Saya</button>
+</div>
+
 <div class="container">
 
-<h1>📸 Smart OCR Lens Pro</h1>
+<!-- WORD MODE -->
+<div id="wordMode">
 
 <div class="card">
 <input type="file" accept="image/*" id="imageInput">
-</div>
-
-<div class="card">
-<div id="imageContainer">
-<img id="image">
-<div id="selection"></div>
-</div>
-</div>
-
-<div class="card">
-<button class="primary" id="scanBtn" onclick="scanArea()" disabled>🔍 Scan Area</button>
-<div class="row">
-<button class="success" onclick="downloadDOCX()">⬇️ Word</button>
-<button class="danger" onclick="downloadPDF()">⬇️ PDF</button>
-<button class="gray" onclick="printDoc()">🖨️ Print</button>
-</div>
-<div id="status">⏳ Menyiapkan OCR engine…</div>
+<button class="primary" onclick="scanOCR()">🔍 Scan OCR</button>
 </div>
 
 <div class="card">
 <textarea id="editor"></textarea>
 </div>
 
-<div class="footer">Scan → Edit → Download → Print</div>
+<div class="card">
+<button class="success" onclick="previewDoc()">👁 Preview</button>
+<button class="danger" onclick="downloadPDF()">⬇️ PDF</button>
+<button class="gray" onclick="printDoc()">🖨️ Print</button>
+<button class="primary" onclick="downloadDOCX()">⬇️ Word</button>
+</div>
+
+</div>
+
+<!-- EXCEL MODE -->
+<div id="excelMode" class="hidden">
+<div class="card">
+<div id="spreadsheet"></div>
+</div>
+</div>
+
+<!-- PROJECTS -->
+<div id="projectMode" class="hidden">
+<div class="card">
+<div id="projectList"></div>
+</div>
+</div>
+
 </div>
 
 <script>
-/* ===== EDITOR ===== */
+
+/* ===== INIT WORD EDITOR ===== */
 tinymce.init({
-  selector:'#editor',
-  height:400,
-  menubar:true,
-  plugins:'lists table link code fullscreen',
-  toolbar:'undo redo | bold italic underline | alignleft aligncenter alignright | bullist numlist | fullscreen'
+selector:'#editor',
+height:400,
+plugins:'lists table link image code fullscreen',
+toolbar:'undo redo | bold italic underline | alignleft aligncenter alignright | bullist numlist | table | fullscreen'
 });
 
-/* ===== OCR ===== */
-const img=document.getElementById("image");
-const container=document.getElementById("imageContainer");
-const selection=document.getElementById("selection");
-const scanBtn=document.getElementById("scanBtn");
-const statusText=document.getElementById("status");
-const imageInput=document.getElementById("imageInput");
+/* ===== INIT EXCEL ===== */
+let hot;
+setTimeout(()=>{
+hot = new Handsontable(document.getElementById('spreadsheet'), {
+data: Handsontable.helper.createSpreadsheetData(20,10),
+rowHeaders:true,
+colHeaders:true,
+licenseKey:'non-commercial-and-evaluation'
+});
+},1000);
 
-let startX=0,startY=0,selecting=false;
+/* ===== SWITCH MODE ===== */
+function switchMode(mode){
+document.getElementById('wordMode').classList.add('hidden');
+document.getElementById('excelMode').classList.add('hidden');
+document.getElementById('projectMode').classList.add('hidden');
+
+if(mode==='word')document.getElementById('wordMode').classList.remove('hidden');
+if(mode==='excel')document.getElementById('excelMode').classList.remove('hidden');
+if(mode==='projects'){ 
+document.getElementById('projectMode').classList.remove('hidden');
+loadProjects();
+}
+}
+
+/* ===== OCR FAST ===== */
 let worker;
-let partialShown=false;
-
 (async()=>{
-  worker=await Tesseract.createWorker({
-    logger:m=>{
-      if(m.status==="recognizing text"){
-        statusText.innerText=`⏳ OCR ${Math.round(m.progress*100)}%`;
-        if(m.progress>0.2 && !partialShown){
-          partialShown=true;
-          tinymce.activeEditor.setContent("<em>⏳ Memuat teks…</em>");
-        }
-      }
-    }
-  });
-  await worker.loadLanguage("ind+eng");
-  await worker.initialize("ind+eng");
-  await worker.setParameters({
-    tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
-    preserve_interword_spaces: 1
-  });
-  statusText.innerText="✅ OCR siap digunakan";
+worker = await Tesseract.createWorker();
+await worker.loadLanguage('eng');
+await worker.initialize('eng');
 })();
 
-imageInput.onchange=e=>{
-  img.src=URL.createObjectURL(e.target.files[0]);
-};
+async function scanOCR(){
+const file=document.getElementById('imageInput').files[0];
+if(!file) return alert("Pilih gambar dulu");
 
-function getPos(e){
-  const r=container.getBoundingClientRect();
-  const p=e.touches?e.touches[0]:e;
-  return{x:p.clientX-r.left,y:p.clientY-r.top};
+const {data}=await worker.recognize(file);
+tinymce.activeEditor.setContent(data.text.replace(/\n/g,"<br>"));
 }
 
-container.addEventListener("mousedown",start);
-container.addEventListener("touchstart",start);
-function start(e){
-  e.preventDefault();
-  selecting=true;
-  const p=getPos(e);
-  startX=p.x;startY=p.y;
-  selection.style.display="block";
-  selection.style.left=startX+"px";
-  selection.style.top=startY+"px";
-  selection.style.width=0;
-  selection.style.height=0;
-}
-
-container.addEventListener("mousemove",move);
-container.addEventListener("touchmove",move);
-function move(e){
-  if(!selecting)return;
-  const p=getPos(e);
-  selection.style.left=Math.min(startX,p.x)+"px";
-  selection.style.top=Math.min(startY,p.y)+"px";
-  selection.style.width=Math.abs(p.x-startX)+"px";
-  selection.style.height=Math.abs(p.y-startY)+"px";
-}
-
-container.addEventListener("mouseup",end);
-container.addEventListener("touchend",end);
-function end(){
-  selecting=false;
-  scanBtn.disabled=false;
-}
-
-async function scanArea(){
-  if(selection.offsetWidth<20)return alert("Blok teks dulu");
-
-  partialShown=false;
-  statusText.innerText="⏳ OCR berjalan, mohon tunggu…";
-  scanBtn.disabled=true;
-
-  const sx=img.naturalWidth/img.clientWidth;
-  const sy=img.naturalHeight/img.clientHeight;
-  const x=selection.offsetLeft*sx;
-  const y=selection.offsetTop*sy;
-  const w=selection.offsetWidth*sx;
-  const h=selection.offsetHeight*sy;
-
-  const c=document.createElement("canvas");
-  const ctx=c.getContext("2d");
-
-  const MAX=1200;
-  let cw=w,ch=h;
-  if(w>MAX||h>MAX){
-    const scale=Math.min(MAX/w,MAX/h);
-    cw=w*scale;ch=h*scale;
-  }
-
-  c.width=cw;c.height=ch;
-  ctx.drawImage(img,x,y,w,h,0,0,cw,ch);
-
-  const result=await Promise.race([
-    worker.recognize(c),
-    new Promise((_,rej)=>setTimeout(()=>rej(),15000))
-  ]).catch(()=>{
-    statusText.innerText="⚠️ OCR berat, coba area lebih kecil";
-    scanBtn.disabled=false;
-    return null;
-  });
-
-  if(!result)return;
-
-  tinymce.activeEditor.setContent(
-    result.data.text.replace(/\n/g,"<br>")
-  );
-
-  statusText.innerText="✅ Scan selesai";
-  scanBtn.disabled=false;
+/* ===== PREVIEW A4 ===== */
+function previewDoc(){
+const content=tinymce.activeEditor.getContent();
+const w=window.open("");
+w.document.write(`
+<html>
+<head>
+<style>
+body{background:#eee;padding:20px}
+#a4{width:21cm;min-height:29.7cm;background:white;
+margin:auto;padding:2.5cm;font-family:"Times New Roman"}
+</style>
+</head>
+<body>
+<div id="a4">${content}</div>
+</body>
+</html>
+`);
 }
 
 /* ===== EXPORT ===== */
 function downloadDOCX(){
-  const text=tinymce.activeEditor.getContent({format:'text'});
-  if(!text)return alert("Teks kosong");
-  const paras=text.split("\n").filter(p=>p.trim());
-  const doc=new docx.Document({
-    sections:[{children:paras.map(p=>new docx.Paragraph(p))}]
-  });
-  docx.Packer.toBlob(doc).then(b=>saveAs(b,"hasil-ocr.docx"));
+const text=tinymce.activeEditor.getContent({format:'text'});
+const doc=new docx.Document({
+sections:[{children:[new docx.Paragraph(text)]}]
+});
+docx.Packer.toBlob(doc).then(b=>saveAs(b,"dokumen.docx"));
 }
 
 function downloadPDF(){
-  const {jsPDF}=window.jspdf;
-  const text=tinymce.activeEditor.getContent({format:'text'});
-  const pdf=new jsPDF();
-  pdf.text(pdf.splitTextToSize(text,180),10,10);
-  pdf.save("hasil-ocr.pdf");
+const {jsPDF}=window.jspdf;
+const pdf=new jsPDF();
+pdf.text(tinymce.activeEditor.getContent({format:'text'}),10,10);
+pdf.save("dokumen.pdf");
 }
 
 function printDoc(){
-  const c=tinymce.activeEditor.getContent();
-  const w=window.open("");
-  w.document.write(`<html><body>${c}<script>window.onload=()=>{print();close()}</script></body></html>`);
-  w.document.close();
+const content=tinymce.activeEditor.getContent();
+const w=window.open("");
+w.document.write(`
+<html><body onload="window.print();window.close()">
+${content}
+</body></html>`);
 }
+
+/* ===== PROJECT SAVE ===== */
+function saveProject(){
+const content=tinymce.activeEditor.getContent();
+let projects=JSON.parse(localStorage.getItem("projects")||"[]");
+projects.unshift({date:new Date().toLocaleString(),content});
+localStorage.setItem("projects",JSON.stringify(projects));
+alert("Tersimpan!");
+}
+
+function loadProjects(){
+let projects=JSON.parse(localStorage.getItem("projects")||"[]");
+let html="";
+projects.forEach((p,i)=>{
+html+=`<div style="margin-bottom:8px">
+<button onclick="openProject(${i})">${p.date}</button>
+</div>`;
+});
+document.getElementById("projectList").innerHTML=html||"Belum ada projek";
+}
+
+function openProject(i){
+let projects=JSON.parse(localStorage.getItem("projects"));
+tinymce.activeEditor.setContent(projects[i].content);
+switchMode('word');
+}
+
 </script>
 
 </body>
