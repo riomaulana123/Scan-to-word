@@ -36,9 +36,7 @@ button{padding:8px;border:none;border-radius:8px;font-weight:600;margin:4px;widt
 .sheet-tabs{display:flex;margin-top:8px}
 .sheet-tabs button{flex:1;background:#e5e7eb}
 .sheet-tabs button.active{background:#2563eb;color:white}
-#imageContainer{position:relative;margin-top:10px;touch-action:none;user-select:none}
-#previewImage{width:100%;border-radius:12px;pointer-events:none}
-#selectionBox{position:absolute;border:2px dashed #2563eb;background:rgba(37,99,235,.25);display:none}
+#printPreview{max-height:400px;overflow:auto}
 </style>
 </head>
 <body>
@@ -86,12 +84,19 @@ button{padding:8px;border:none;border-radius:8px;font-weight:600;margin:4px;widt
 <button onclick="addRow()" class="primary">➕ Baris</button>
 <button onclick="addCol()" class="primary">➕ Kolom</button>
 <button onclick="exportExcel()" class="success">⬇️ Export XLSX</button>
-<button onclick="addSheet()" class="gray">➕ Sheet</button>
+<button onclick="showPrintPreview()" class="danger">👁 Preview Print</button>
+<button onclick="printExcel()" class="gray">🖨️ Print</button>
+<button onclick="addSheet()" class="primary">➕ Sheet</button>
 </div>
 
 <div class="card">
 <div id="spreadsheet"></div>
 <div class="sheet-tabs" id="sheetTabs"></div>
+</div>
+
+<div class="card hidden" id="previewCard">
+<h3>Print Preview</h3>
+<div id="printPreview"></div>
 </div>
 
 </div>
@@ -107,10 +112,10 @@ button{padding:8px;border:none;border-radius:8px;font-weight:600;margin:4px;widt
 
 <script>
 
-/* WORD */
+/* ===== WORD ===== */
 let quill=new Quill('#editor',{theme:'snow'});
 
-/* ===== EXCEL MULTI SHEET ===== */
+/* ===== EXCEL ===== */
 let sheets={};
 let currentSheet="Sheet1";
 let hot;
@@ -129,9 +134,9 @@ width:'100%',
 height:450,
 manualColumnResize:true,
 manualRowResize:true,
+contextMenu:true,
 filters:true,
 dropdownMenu:true,
-contextMenu:true,
 formulas:true,
 licenseKey:'non-commercial-and-evaluation'
 });
@@ -155,19 +160,78 @@ let html="";
 Object.keys(sheets).forEach(name=>{
 html+=`<button onclick="switchSheet('${name}')" class="${name===currentSheet?'active':''}">${name}</button>`;
 });
-document.getElementById("sheetTabs").innerHTML=html;
+sheetTabs.innerHTML=html;
 }
 
 function addRow(){ hot.alter('insert_row'); }
 function addCol(){ hot.alter('insert_col'); }
 
+function getUsedRange(data){
+let maxRow=0,maxCol=0;
+for(let r=0;r<data.length;r++){
+for(let c=0;c<data[r].length;c++){
+if(data[r][c]!=null && data[r][c]!=""){
+if(r>maxRow) maxRow=r;
+if(c>maxCol) maxCol=c;
+}
+}
+}
+return data.slice(0,maxRow+1).map(row=>row.slice(0,maxCol+1));
+}
+
 function exportExcel(){
 let wb=XLSX.utils.book_new();
 Object.keys(sheets).forEach(name=>{
-let ws=XLSX.utils.aoa_to_sheet(sheets[name]);
+let used=getUsedRange(sheets[name]);
+if(used.length>0){
+let ws=XLSX.utils.aoa_to_sheet(used);
 XLSX.utils.book_append_sheet(wb,ws,name);
+}
 });
 XLSX.writeFile(wb,"SmartOCR.xlsx");
+}
+
+function buildTableHTML(data){
+let html="<table border='1' style='border-collapse:collapse;width:100%'>";
+data.forEach(row=>{
+html+="<tr>";
+row.forEach(cell=>{
+html+="<td style='padding:6px'>"+(cell||"")+"</td>";
+});
+html+="</tr>";
+});
+html+="</table>";
+return html;
+}
+
+function showPrintPreview(){
+let used=getUsedRange(sheets[currentSheet]);
+if(used.length===0){ alert("Tidak ada data"); return; }
+previewCard.classList.remove('hidden');
+printPreview.innerHTML=buildTableHTML(used);
+}
+
+function printExcel(){
+let used=getUsedRange(sheets[currentSheet]);
+if(used.length===0){ alert("Tidak ada data"); return; }
+let html=buildTableHTML(used);
+let w=window.open("");
+w.document.write(`
+<html>
+<head>
+<style>
+@media print{
+@page{ size:landscape; margin:10mm;}
+}
+table{width:100%;border-collapse:collapse}
+td{padding:6px}
+</style>
+</head>
+<body onload="window.print();window.close()">
+${html}
+</body>
+</html>
+`);
 }
 
 setTimeout(()=>{
@@ -175,7 +239,7 @@ sheets["Sheet1"]=createEmptyData();
 initExcel();
 },500);
 
-/* MODE SWITCH */
+/* ===== MODE ===== */
 function switchMode(mode){
 wordMode.classList.add('hidden');
 excelMode.classList.add('hidden');
@@ -185,99 +249,7 @@ if(mode==='excel') excelMode.classList.remove('hidden');
 if(mode==='projects'){ projectMode.classList.remove('hidden'); loadProjects(); }
 }
 
-/* OCR */
-let worker;
-(async()=>{
-worker=await Tesseract.createWorker();
-await worker.loadLanguage('ind+eng');
-await worker.initialize('ind+eng');
-})();
-
-const img=document.getElementById("previewImage");
-const container=document.getElementById("imageContainer");
-const box=document.getElementById("selectionBox");
-let startX,startY,selecting=false;
-
-imageInput.onchange=e=>{
-if(e.target.files[0]) img.src=URL.createObjectURL(e.target.files[0]);
-};
-
-container.addEventListener("touchstart",e=>{
-if(!img.src)return;
-e.preventDefault();
-selecting=true;
-let r=container.getBoundingClientRect();
-let t=e.touches[0];
-startX=t.clientX-r.left;
-startY=t.clientY-r.top;
-box.style.display="block";
-box.style.left=startX+"px";
-box.style.top=startY+"px";
-box.style.width=0;
-box.style.height=0;
-},{passive:false});
-
-container.addEventListener("touchmove",e=>{
-if(!selecting)return;
-e.preventDefault();
-let r=container.getBoundingClientRect();
-let t=e.touches[0];
-let x=t.clientX-r.left;
-let y=t.clientY-r.top;
-box.style.left=Math.min(startX,x)+"px";
-box.style.top=Math.min(startY,y)+"px";
-box.style.width=Math.abs(x-startX)+"px";
-box.style.height=Math.abs(y-startY)+"px";
-},{passive:false});
-
-container.addEventListener("touchend",()=>selecting=false);
-
-async function scanSelected(){
-if(box.offsetWidth<20)return alert("Blok area dulu");
-let scaleX=img.naturalWidth/img.clientWidth;
-let scaleY=img.naturalHeight/img.clientHeight;
-let canvas=document.createElement("canvas");
-canvas.width=box.offsetWidth*scaleX;
-canvas.height=box.offsetHeight*scaleY;
-canvas.getContext("2d").drawImage(
-img,
-box.offsetLeft*scaleX,
-box.offsetTop*scaleY,
-canvas.width,
-canvas.height,
-0,0,canvas.width,canvas.height
-);
-let {data}=await worker.recognize(canvas);
-quill.root.innerHTML+="<p>"+data.text+"</p>";
-box.style.display="none";
-}
-
-/* EXPORT WORD */
-function downloadPDF(){
-const {jsPDF}=window.jspdf;
-const pdf=new jsPDF();
-pdf.text(quill.getText(),10,10);
-pdf.save("dokumen.pdf");
-}
-
-function downloadDOCX(){
-const doc=new docx.Document({
-sections:[{children:[new docx.Paragraph(quill.getText())]}]
-});
-docx.Packer.toBlob(doc).then(b=>saveAs(b,"dokumen.docx"));
-}
-
-function printDoc(){
-const w=window.open("");
-w.document.write(`<html><body onload="window.print();window.close()">${quill.root.innerHTML}</body></html>`);
-}
-
-function previewDoc(){
-const w=window.open("");
-w.document.write(`<html><body>${quill.root.innerHTML}</body></html>`);
-}
-
-/* PROJECT */
+/* ===== PROJECT ===== */
 function saveProject(){
 let projects=JSON.parse(localStorage.getItem("projects")||"[]");
 projects.unshift({date:new Date().toLocaleString(),content:quill.root.innerHTML});
