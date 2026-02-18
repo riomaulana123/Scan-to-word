@@ -45,34 +45,25 @@ margin:auto;
 padding:40px;
 box-shadow:0 0 15px rgba(0,0,0,.15);
 }
-.project-item{
-padding:10px;
-border:1px solid #ddd;
-margin-bottom:8px;
-border-radius:8px;
-display:flex;
-justify-content:space-between;
-align-items:center;
-}
 </style>
 </head>
 <body>
 
 <header>
 <h1>🚀 Smart OCR Lens Pro+</h1>
-<button onclick="saveCurrentProject()" class="success">💾 Simpan</button>
+<button onclick="saveWordProject()" class="success">💾 Simpan</button>
 </header>
 
 <div class="tabs">
 <button onclick="switchMode('word')" class="active">📄 Word</button>
 <button onclick="switchMode('excel')">📊 Excel</button>
-<button onclick="switchMode('projects')">📁 Projek Saya</button>
 </div>
 
 <div class="container">
 
-<!-- WORD -->
+<!-- WORD MODE -->
 <div id="wordMode">
+
 <div class="card">
 <input type="file" accept="image/*" id="imageInput">
 <div id="imageContainer">
@@ -97,10 +88,12 @@ align-items:center;
 <h3>Preview Word</h3>
 <div id="wordPreview" class="preview-box"></div>
 </div>
+
 </div>
 
-<!-- EXCEL -->
+<!-- EXCEL MODE -->
 <div id="excelMode" class="hidden">
+
 <div class="card">
 <button onclick="addRow()" class="primary">➕ Baris</button>
 <button onclick="addCol()" class="primary">➕ Kolom</button>
@@ -125,29 +118,58 @@ align-items:center;
 <h3>Preview Excel</h3>
 <div id="excelPreview" class="preview-box"></div>
 </div>
-</div>
 
-<!-- PROJECT -->
-<div id="projectMode" class="hidden">
-<div class="card">
-<h3>Daftar Projek</h3>
-<div id="projectList"></div>
-</div>
 </div>
 
 </div>
 
 <script>
 
-/* WORD */
-let quill=new Quill('#editor',{theme:'snow'});
+/* ================= WORD ================= */
+let quill=new Quill('#editor',{
+theme:'snow',
+modules:{
+toolbar:[
+[{header:[1,2,3,false]}],
+['bold','italic','underline'],
+[{list:'ordered'},{list:'bullet'}],
+[{align:[]}],
+[{color:[]},{background:[]}],
+['clean']
+]
+}
+});
 
 function previewWord(){
 wordPreview.innerHTML="<div class='print-paper'>"+quill.root.innerHTML+"</div>";
 wordPreviewCard.classList.remove('hidden');
 }
 
-/* EXCEL */
+function printWord(){
+let w=window.open("");
+w.document.write("<html><body onload='window.print()'>"+quill.root.innerHTML+"</body></html>");
+}
+
+async function downloadPDF(){
+const {jsPDF}=window.jspdf;
+let doc=new jsPDF();
+doc.html(quill.root.innerHTML,{callback:function(doc){doc.save("SmartOCR.pdf");}});
+}
+
+function downloadDOCX(){
+const {Document,Packer,Paragraph}=docx;
+let doc=new Document({
+sections:[{children:[new Paragraph(quill.getText())]}]
+});
+Packer.toBlob(doc).then(blob=>saveAs(blob,"SmartOCR.docx"));
+}
+
+function saveWordProject(){
+localStorage.setItem("wordProject",quill.root.innerHTML);
+alert("Word tersimpan!");
+}
+
+/* ================= EXCEL ================= */
 let hot;
 let cellStyles={};
 
@@ -156,79 +178,128 @@ hot=new Handsontable(document.getElementById('spreadsheet'),{
 data:Array.from({length:50},()=>Array(20).fill("")),
 rowHeaders:true,
 colHeaders:true,
-licenseKey:'non-commercial-and-evaluation'
+licenseKey:'non-commercial-and-evaluation',
+cells:function(row,col){
+return {
+renderer:function(instance,td,row,col,prop,value){
+Handsontable.renderers.TextRenderer.apply(this,arguments);
+let style=cellStyles[row+"-"+col];
+if(style){
+if(style.bold) td.style.fontWeight="bold";
+if(style.fontSize) td.style.fontSize=style.fontSize+"px";
+if(style.fontFamily) td.style.fontFamily=style.fontFamily;
+if(style.color) td.style.color=style.color;
+if(style.bg) td.style.background=style.bg;
+if(style.align) td.style.textAlign=style.align;
+}
+}
+};
+}
 });
 }
 setTimeout(initExcel,500);
 
-/* ================= PROJECT SYSTEM ================= */
-
-function saveCurrentProject(){
-let name=prompt("Nama project?");
-if(!name) return;
-
-let mode=document.querySelector(".tabs button.active").innerText.includes("Word")?"word":"excel";
-
-let data;
-if(mode==="word"){
-data={type:"word",content:quill.root.innerHTML};
-}else{
-data={type:"excel",content:hot.getData(),styles:cellStyles};
+function getSelectedCell(){
+const sel=hot.getSelected();
+if(!sel) return null;
+return {row:sel[0][0],col:sel[0][1]};
 }
 
-localStorage.setItem("project_"+name,JSON.stringify(data));
-alert("Project tersimpan!");
-loadProjects();
-}
-
-function loadProjects(){
-projectList.innerHTML="";
-Object.keys(localStorage).forEach(key=>{
-if(key.startsWith("project_")){
-let name=key.replace("project_","");
-let div=document.createElement("div");
-div.className="project-item";
-div.innerHTML=`${name}
-<div>
-<button onclick="openProject('${name}')">Buka</button>
-<button onclick="deleteProject('${name}')">Hapus</button>
-</div>`;
-projectList.appendChild(div);
-}
-});
-}
-
-function openProject(name){
-let data=JSON.parse(localStorage.getItem("project_"+name));
-if(data.type==="word"){
-switchMode("word");
-quill.root.innerHTML=data.content;
-}else{
-switchMode("excel");
-hot.loadData(data.content);
-cellStyles=data.styles||{};
+function updateStyle(prop,val){
+const cell=getSelectedCell();
+if(!cell) return;
+let key=cell.row+"-"+cell.col;
+if(!cellStyles[key]) cellStyles[key]={};
+cellStyles[key][prop]=val;
 hot.render();
 }
+
+function makeBold(){
+const cell=getSelectedCell();
+if(!cell) return;
+let key=cell.row+"-"+cell.col;
+if(!cellStyles[key]) cellStyles[key]={};
+cellStyles[key].bold=!cellStyles[key].bold;
+hot.render();
 }
 
-function deleteProject(name){
-localStorage.removeItem("project_"+name);
-loadProjects();
+function setFontSize(){
+let size=prompt("Ukuran font (contoh 12)");
+if(size) updateStyle("fontSize",size);
 }
 
-loadProjects();
+function setFontFamily(){
+let font=prompt("Font (contoh Arial)");
+if(font) updateStyle("fontFamily",font);
+}
 
-/* MODE SWITCH */
+function alignLeft(){updateStyle("align","left");}
+function alignCenter(){updateStyle("align","center");}
+function alignRight(){updateStyle("align","right");}
+
+function textColor(){
+let color=prompt("Warna teks (contoh red atau #ff0000)");
+if(color) updateStyle("color",color);
+}
+
+function bgColor(){
+let color=prompt("Warna tabel (contoh yellow atau #ffff00)");
+if(color) updateStyle("bg",color);
+}
+
+function addRow(){hot.alter('insert_row');}
+function addCol(){hot.alter('insert_col');}
+
+function exportExcel(){
+let wb=XLSX.utils.book_new();
+let ws=XLSX.utils.aoa_to_sheet(hot.getData());
+XLSX.utils.book_append_sheet(wb,ws,"Sheet1");
+XLSX.writeFile(wb,"SmartOCR.xlsx");
+}
+
+function previewExcel(){
+let data=hot.getData();
+let table="<table border='1' style='border-collapse:collapse;width:100%'>";
+
+data.forEach((row,r)=>{
+if(row.some(cell=>cell!=="")){
+table+="<tr>";
+row.forEach((cell,c)=>{
+if(cell!==""){
+let style=cellStyles[r+"-"+c]||{};
+let s="";
+if(style.bold) s+="font-weight:bold;";
+if(style.fontSize) s+="font-size:"+style.fontSize+"px;";
+if(style.fontFamily) s+="font-family:"+style.fontFamily+";";
+if(style.color) s+="color:"+style.color+";";
+if(style.bg) s+="background:"+style.bg+";";
+if(style.align) s+="text-align:"+style.align+";";
+table+="<td style='padding:6px;"+s+"'>"+cell+"</td>";
+}else{
+table+="<td></td>";
+}
+});
+table+="</tr>";
+}
+});
+
+table+="</table>";
+
+excelPreview.innerHTML="<div class='print-paper'>"+table+"</div>";
+excelPreviewCard.classList.remove('hidden');
+}
+
+function printExcel(){
+let w=window.open("");
+w.document.write("<html><body onload='window.print()'>"+excelPreview.innerHTML+"</body></html>");
+}
+
+/* ================= MODE ================= */
 function switchMode(mode){
 wordMode.classList.add('hidden');
 excelMode.classList.add('hidden');
-projectMode.classList.add('hidden');
-
-document.querySelectorAll(".tabs button").forEach(b=>b.classList.remove("active"));
-
-if(mode==='word'){wordMode.classList.remove('hidden');document.querySelectorAll(".tabs button")[0].classList.add("active");}
-if(mode==='excel'){excelMode.classList.remove('hidden');document.querySelectorAll(".tabs button")[1].classList.add("active");}
-if(mode==='projects'){projectMode.classList.remove('hidden');document.querySelectorAll(".tabs button")[2].classList.add("active");}
+if(mode==='word') wordMode.classList.remove('hidden');
+if(mode==='excel') excelMode.classList.remove('hidden');
 }
 
 </script>
