@@ -37,6 +37,14 @@ button{padding:8px;border:none;border-radius:8px;font-weight:600;margin:4px;widt
 #imageContainer{position:relative;margin-top:10px}
 #selectionBox{position:absolute;border:2px dashed red;display:none;pointer-events:none}
 .preview-box{border:1px solid #ddd;padding:10px;margin-top:10px}
+.print-paper{
+width:794px;
+min-height:1123px;
+background:white;
+margin:auto;
+padding:40px;
+box-shadow:0 0 15px rgba(0,0,0,.15);
+}
 </style>
 </head>
 <body>
@@ -49,7 +57,6 @@ button{padding:8px;border:none;border-radius:8px;font-weight:600;margin:4px;widt
 <div class="tabs">
 <button onclick="switchMode('word')" class="active">📄 Word</button>
 <button onclick="switchMode('excel')">📊 Excel</button>
-<button onclick="switchMode('projects')">📁 Projek Saya</button>
 </div>
 
 <div class="container">
@@ -90,11 +97,15 @@ button{padding:8px;border:none;border-radius:8px;font-weight:600;margin:4px;widt
 <div class="card">
 <button onclick="addRow()" class="primary">➕ Baris</button>
 <button onclick="addCol()" class="primary">➕ Kolom</button>
+<button onclick="makeBold()" class="success">B</button>
+<button onclick="alignLeft()" class="primary">Left</button>
+<button onclick="alignCenter()" class="primary">Center</button>
+<button onclick="alignRight()" class="primary">Right</button>
+<button onclick="textColor()" class="danger">Warna Teks</button>
+<button onclick="bgColor()" class="gray">Warna Tabel</button>
 <button onclick="exportExcel()" class="success">⬇️ Export XLSX</button>
-<button onclick="saveExcelProject()" class="success">💾 Simpan Excel</button>
 <button onclick="previewExcel()" class="danger">👁 Preview</button>
 <button onclick="printExcel()" class="gray">🖨️ Print</button>
-<button onclick="addSheet()" class="primary">➕ Sheet</button>
 </div>
 
 <div class="card">
@@ -108,22 +119,27 @@ button{padding:8px;border:none;border-radius:8px;font-weight:600;margin:4px;widt
 
 </div>
 
-<!-- PROJECT MODE -->
-<div id="projectMode" class="hidden">
-<div class="card">
-<div id="projectList"></div>
-</div>
-</div>
-
 </div>
 
 <script>
 
 /* ================= WORD ================= */
-let quill=new Quill('#editor',{theme:'snow'});
+let quill=new Quill('#editor',{
+theme:'snow',
+modules:{
+toolbar:[
+[{header:[1,2,3,false]}],
+['bold','italic','underline'],
+[{list:'ordered'},{list:'bullet'}],
+[{align:[]}],
+[{color:[]},{background:[]}],
+['clean']
+]
+}
+});
 
 function previewWord(){
-wordPreview.innerHTML=quill.root.innerHTML;
+wordPreview.innerHTML="<div class='print-paper'>"+quill.root.innerHTML+"</div>";
 wordPreviewCard.classList.remove('hidden');
 }
 
@@ -141,9 +157,7 @@ doc.html(quill.root.innerHTML,{callback:function(doc){doc.save("SmartOCR.pdf");}
 function downloadDOCX(){
 const {Document,Packer,Paragraph}=docx;
 let doc=new Document({
-sections:[{
-children:[new Paragraph(quill.getText())]
-}]
+sections:[{children:[new Paragraph(quill.getText())]}]
 });
 Packer.toBlob(doc).then(blob=>saveAs(blob,"SmartOCR.docx"));
 }
@@ -244,17 +258,76 @@ quill.root.innerHTML+="<p>"+result.data.text+"</p>";
 
 /* ================= EXCEL ================= */
 let hot;
+let cellMeta={};
+
 function initExcel(){
 hot=new Handsontable(document.getElementById('spreadsheet'),{
-data:Handsontable.helper.createSpreadsheetData(50,20),
-rowHeaders:true,colHeaders:true,
-licenseKey:'non-commercial-and-evaluation'
+data:Array.from({length:50},()=>Array(20).fill("")),
+rowHeaders:true,
+colHeaders:true,
+licenseKey:'non-commercial-and-evaluation',
+cells:function(row,col){
+const meta=cellMeta[row+"-"+col]||{};
+return meta;
+}
 });
 }
 setTimeout(initExcel,500);
 
 function addRow(){hot.alter('insert_row');}
 function addCol(){hot.alter('insert_col');}
+
+function getSelectedCell(){
+const sel=hot.getSelected();
+if(!sel) return null;
+return {row:sel[0][0],col:sel[0][1]};
+}
+
+function makeBold(){
+const cell=getSelectedCell();
+if(!cell) return;
+cellMeta[cell.row+"-"+cell.col]={renderer:function(instance,td,row,col,prop,value){
+Handsontable.renderers.TextRenderer.apply(this,arguments);
+td.style.fontWeight="bold";
+}};
+hot.render();
+}
+
+function alignLeft(){setAlign("left");}
+function alignCenter(){setAlign("center");}
+function alignRight(){setAlign("right");}
+
+function setAlign(alignment){
+const cell=getSelectedCell();
+if(!cell) return;
+cellMeta[cell.row+"-"+cell.col]={renderer:function(instance,td,row,col,prop,value){
+Handsontable.renderers.TextRenderer.apply(this,arguments);
+td.style.textAlign=alignment;
+}};
+hot.render();
+}
+
+function textColor(){
+const color=prompt("Masukkan warna teks (contoh: red atau #ff0000)");
+if(!color) return;
+const cell=getSelectedCell();
+cellMeta[cell.row+"-"+cell.col]={renderer:function(instance,td,row,col,prop,value){
+Handsontable.renderers.TextRenderer.apply(this,arguments);
+td.style.color=color;
+}};
+hot.render();
+}
+
+function bgColor(){
+const color=prompt("Masukkan warna background (contoh: yellow atau #ffff00)");
+if(!color) return;
+const cell=getSelectedCell();
+cellMeta[cell.row+"-"+cell.col]={renderer:function(instance,td,row,col,prop,value){
+Handsontable.renderers.TextRenderer.apply(this,arguments);
+td.style.background=color;
+}};
+hot.render();
+}
 
 function exportExcel(){
 let wb=XLSX.utils.book_new();
@@ -264,7 +337,12 @@ XLSX.writeFile(wb,"SmartOCR.xlsx");
 }
 
 function previewExcel(){
-excelPreview.innerHTML=hot.getData().map(r=>"<div>"+r.join(" | ")+"</div>").join("");
+let table="<table border='1' style='border-collapse:collapse;width:100%'>";
+hot.getData().forEach(r=>{
+table+="<tr>"+r.map(c=>"<td style='padding:6px'>"+(c||"")+"</td>").join("")+"</tr>";
+});
+table+="</table>";
+excelPreview.innerHTML="<div class='print-paper'>"+table+"</div>";
 excelPreviewCard.classList.remove('hidden');
 }
 
@@ -273,16 +351,10 @@ let w=window.open("");
 w.document.write("<html><body onload='window.print()'>"+excelPreview.innerHTML+"</body></html>");
 }
 
-function saveExcelProject(){
-localStorage.setItem("excelProject",JSON.stringify(hot.getData()));
-alert("Excel tersimpan!");
-}
-
 /* ================= MODE ================= */
 function switchMode(mode){
 wordMode.classList.add('hidden');
 excelMode.classList.add('hidden');
-projectMode.classList.add('hidden');
 if(mode==='word') wordMode.classList.remove('hidden');
 if(mode==='excel') excelMode.classList.remove('hidden');
 }
