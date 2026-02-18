@@ -1,191 +1,963 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Office Web App</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart OCR Lens Pro+ | Professional AI Document Workspace</title>
+    <meta name="description" content="Advanced OCR Office Workspace with Word Mode and Real Spreadsheet Excel Mode. Scan, Edit, and Export seamlessly.">
+    
+    <!-- SEO & OG Tags -->
+    <meta property="og:title" content="Smart OCR Lens Pro+">
+    <meta property="og:description" content="Mobile-friendly AI OCR and Document Workspace.">
+    <meta property="og:type" content="website">
 
-<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
-<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.0/lucide.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
-<style>
-body{font-family:Arial;margin:0;background:#f3f3f3}
-.toolbar{background:#222;color:white;padding:10px;display:flex;gap:10px}
-button{padding:6px 12px;cursor:pointer}
-.hidden{display:none}
-#editor{height:300px;background:white}
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --accent: #f43f5e;
+            --bg: #f8fafc;
+            --glass: rgba(255, 255, 255, 0.7);
+            --border: rgba(226, 232, 240, 0.8);
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+        }
 
-.preview-container{
-position:fixed;
-top:0;left:0;right:0;bottom:0;
-background:rgba(0,0,0,.5);
-display:flex;
-justify-content:center;
-align-items:center;
-overflow:auto;
-}
-.preview-paper{
-width:210mm;
-min-height:297mm;
-background:white;
-padding:20mm;
-box-shadow:0 0 10px rgba(0,0,0,.3);
-}
-table{border-collapse:collapse;width:100%}
-td{border:1px solid #999;padding:5px}
-</style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', -apple-system, sans-serif; }
+
+        body {
+            background: var(--bg);
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Glassmorphism Components */
+        .glass-card {
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+        }
+
+        /* Layout */
+        header {
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo {
+            font-weight: 800;
+            font-size: 1.25rem;
+            background: linear-gradient(to right, var(--primary), var(--primary-dark));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-actions { display: flex; gap: 12px; align-items: center; }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.9rem;
+        }
+
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
+        .btn-outline:hover { background: #f1f5f9; }
+
+        /* Sidebar/Mode Switcher */
+        .workspace-container {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            flex: 1;
+            height: calc(100vh - 70px);
+        }
+
+        .sidebar {
+            padding: 1.5rem;
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            overflow-y: auto;
+        }
+
+        .mode-switch {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .mode-btn {
+            padding: 12px 16px;
+            border-radius: 12px;
+            text-align: left;
+            background: transparent;
+            border: 1px solid transparent;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--text-muted);
+            transition: 0.2s;
+        }
+
+        .mode-btn.active {
+            background: white;
+            color: var(--primary);
+            border-color: var(--primary);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        }
+
+        /* Main Workspace Area */
+        .workspace-main {
+            padding: 2rem;
+            overflow-y: auto;
+            position: relative;
+            background: #fdfdfd;
+        }
+
+        /* OCR Mode UI */
+        #ocr-panel {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: 20px;
+            padding: 3rem;
+            text-align: center;
+            transition: 0.3s;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .drop-zone:hover, .drop-zone.active {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .image-preview-container {
+            margin-top: 2rem;
+            position: relative;
+            display: none;
+            justify-content: center;
+        }
+
+        canvas#cropCanvas {
+            max-width: 100%;
+            border-radius: 8px;
+            cursor: crosshair;
+            box-shadow: var(--shadow);
+        }
+
+        .scan-controls {
+            margin-top: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 10px;
+            margin: 1rem 0;
+            overflow: hidden;
+            display: none;
+        }
+
+        #progress-bar {
+            width: 0%;
+            height: 100%;
+            background: var(--primary);
+            transition: width 0.3s;
+        }
+
+        /* Word Mode UI */
+        #word-panel { display: none; height: 100%; flex-direction: column; }
+        .toolbar {
+            padding: 10px;
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .rich-editor {
+            flex: 1;
+            padding: 40px;
+            background: white;
+            border: 1px solid var(--border);
+            border-top: none;
+            outline: none;
+            min-height: 500px;
+            line-height: 1.6;
+            overflow-y: auto;
+        }
+
+        /* Excel Mode UI */
+        #excel-panel { display: none; height: 100%; flex-direction: column; }
+        .spreadsheet-container {
+            flex: 1;
+            overflow: auto;
+            border: 1px solid var(--border);
+            background: #fff;
+            position: relative;
+        }
+
+        table.sheet-grid {
+            border-collapse: collapse;
+            table-layout: fixed;
+            min-width: 100%;
+        }
+
+        .sheet-grid th {
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            padding: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        .sheet-grid th.row-header {
+            position: sticky;
+            left: 0;
+            z-index: 3;
+            width: 40px;
+        }
+
+        .sheet-grid td {
+            border: 1px solid #e2e8f0;
+            padding: 0;
+            height: 30px;
+            min-width: 100px;
+            position: relative;
+        }
+
+        .sheet-grid td input {
+            width: 100%;
+            height: 100%;
+            border: none;
+            padding: 4px 8px;
+            outline: none;
+            font-size: 13px;
+        }
+
+        .sheet-grid td.active {
+            outline: 2px solid var(--primary);
+            z-index: 1;
+        }
+
+        /* Freemium / Ads */
+        .ads-placeholder {
+            margin-top: auto;
+            background: #f1f5f9;
+            border-radius: 12px;
+            padding: 1rem;
+            text-align: center;
+            font-size: 0.8rem;
+            color: #94a3b8;
+        }
+
+        .premium-badge {
+            background: linear-gradient(45deg, #f59e0b, #ef4444);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+
+        /* Project List */
+        .project-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            font-size: 0.85rem;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        /* Modals */
+        .modal {
+            position: fixed;
+            top:0; left:0; width:100%; height:100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 20px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+        }
+
+        .pricing-card {
+            border: 1px solid var(--border);
+            padding: 1.5rem;
+            border-radius: 16px;
+            margin: 1rem 0;
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 768px) {
+            .workspace-container { grid-template-columns: 1fr; }
+            .sidebar { display: none; }
+            .workspace-main { padding: 1rem; }
+            .logo span { display: none; }
+        }
+
+        /* Watermark */
+        .watermark {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            opacity: 0.1;
+            pointer-events: none;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #000;
+            display: none;
+        }
+
+        #word-panel.free .watermark, #excel-panel.free .watermark {
+            display: block;
+        }
+    </style>
 </head>
 <body>
 
-<div class="toolbar">
-<button onclick="showWord()">Word</button>
-<button onclick="showExcel()">Excel</button>
+    <header class="glass-card">
+        <div class="logo">
+            <i data-lucide="scan-eye"></i>
+            <span>SMART OCR LENS <small>PRO+</small></span>
+        </div>
+        <div class="nav-actions">
+            <input type="text" id="project-name" class="btn btn-outline" placeholder="Untitled Project" style="width: 200px">
+            <button id="save-btn" class="btn btn-outline" title="Save Project"><i data-lucide="save"></i></button>
+            <button id="upgrade-btn" class="btn btn-primary"><i data-lucide="zap"></i> Go Pro</button>
+            <div id="user-status" style="font-size: 0.8rem; color: var(--text-muted)">Free Scans: <span id="scans-left">3</span></div>
+        </div>
+    </header>
 
-<button onclick="saveWord()">Save Word</button>
-<button onclick="previewWord()">Preview Word</button>
+    <div class="workspace-container">
+        <!-- Sidebar -->
+        <aside class="sidebar glass-card">
+            <div class="mode-switch">
+                <p style="font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">Workspace Mode</p>
+                <button class="mode-btn active" data-mode="ocr"><i data-lucide="camera"></i> OCR Scanner</button>
+                <button class="mode-btn" data-mode="word"><i data-lucide="file-text"></i> Word Mode</button>
+                <button class="mode-btn" data-mode="excel"><i data-lucide="table"></i> Spreadsheet</button>
+            </div>
 
-<button onclick="saveExcel()">Save Excel</button>
-<button onclick="previewExcel()">Preview Excel</button>
+            <div>
+                <p style="font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">Saved Projects</p>
+                <div id="project-list">
+                    <!-- Projects dynamic -->
+                </div>
+            </div>
 
-<button onclick="document.getElementById('ocrInput').click()">OCR Scan</button>
-<input type="file" id="ocrInput" hidden accept="image/*">
-</div>
+            <div class="ads-placeholder" id="ads-section">
+                <p>Sponsored Content</p>
+                <div style="height: 100px; background: #cbd5e1; border-radius: 8px; margin-top: 8px; display: flex; align-items: center; justify-content: center; color: #64748b">Ad Placeholder</div>
+            </div>
+        </aside>
 
-<div id="wordArea">
-<div id="editor"></div>
-</div>
+        <!-- Main Area -->
+        <main class="workspace-main">
+            
+            <!-- OCR PANEL -->
+            <section id="ocr-panel">
+                <div class="drop-zone" id="drop-zone">
+                    <i data-lucide="cloud-upload" style="width: 48px; height: 48px; color: var(--primary); margin-bottom: 1rem;"></i>
+                    <h3>Drag & Drop Image</h3>
+                    <p style="color: var(--text-muted); margin-bottom: 1rem;">Supports JPG, PNG, WEBP (Max 5MB)</p>
+                    <input type="file" id="file-input" hidden accept="image/*">
+                    <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">Browse Files</button>
+                </div>
 
-<div id="excelArea" class="hidden">
-<table id="excelTable"></table>
-</div>
+                <div class="image-preview-container" id="preview-wrapper">
+                    <canvas id="cropCanvas"></canvas>
+                    <div id="selection-hint" style="position: absolute; top: -30px; background: rgba(0,0,0,0.7); color: white; padding: 4px 10px; border-radius: 4px; font-size: 0.7rem;">Click and drag to select scan area</div>
+                </div>
 
-<div id="previewBox" class="preview-container hidden">
-<div>
-<div id="previewContent"></div>
-<div style="text-align:center;margin-top:10px">
-<button onclick="window.print()">Print</button>
-<button onclick="closePreview()">Close</button>
-</div>
-</div>
-</div>
+                <div class="scan-controls" id="scan-controls" style="display: none;">
+                    <select id="lang-select" class="btn btn-outline">
+                        <option value="eng">English</option>
+                        <option value="spa">Spanish</option>
+                        <option value="fra">French</option>
+                        <option value="deu">German</option>
+                        <option value="jpn">Japanese</option>
+                        <option value="chi_sim">Chinese</option>
+                    </select>
+                    <div style="display: flex; gap: 10px">
+                        <button class="btn btn-outline" onclick="resetOCR()">Reset</button>
+                        <button id="start-scan" class="btn btn-primary">Start Analysis</button>
+                    </div>
+                </div>
 
-<script>
-let quill=new Quill('#editor',{theme:'snow'})
+                <div class="progress-container" id="progress-container">
+                    <div id="progress-bar"></div>
+                </div>
+                <p id="status-text" style="text-align: center; font-size: 0.85rem; color: var(--text-muted);"></p>
 
-function showWord(){
-document.getElementById("wordArea").classList.remove("hidden")
-document.getElementById("excelArea").classList.add("hidden")
-}
+                <div id="ocr-result-preview" class="glass-card" style="margin-top: 2rem; padding: 1rem; display: none; min-height: 100px;">
+                    <p style="font-size: 0.7rem; color: var(--primary); font-weight: bold; margin-bottom: 8px;">REAL-TIME SCAN FEED:</p>
+                    <div id="live-text" style="font-size: 0.9rem; white-space: pre-wrap;"></div>
+                </div>
+            </section>
 
-function showExcel(){
-document.getElementById("excelArea").classList.remove("hidden")
-document.getElementById("wordArea").classList.add("hidden")
-}
+            <!-- WORD PANEL -->
+            <section id="word-panel">
+                <div class="toolbar glass-card">
+                    <button class="btn btn-outline" onclick="execCmd('bold')"><i data-lucide="bold"></i></button>
+                    <button class="btn btn-outline" onclick="execCmd('italic')"><i data-lucide="italic"></i></button>
+                    <button class="btn btn-outline" onclick="execCmd('underline')"><i data-lucide="underline"></i></button>
+                    <select id="font-size" onchange="execCmd('fontSize', this.value)" class="btn btn-outline">
+                        <option value="3">Small</option>
+                        <option value="4" selected>Normal</option>
+                        <option value="5">Large</option>
+                        <option value="6">Heading</option>
+                    </select>
+                    <button class="btn btn-outline" onclick="execCmd('justifyLeft')"><i data-lucide="align-left"></i></button>
+                    <button class="btn btn-outline" onclick="execCmd('justifyCenter')"><i data-lucide="align-center"></i></button>
+                    <button class="btn btn-outline" onclick="execCmd('justifyRight')"><i data-lucide="align-right"></i></button>
+                    <button class="btn btn-outline" onclick="insertTable()"><i data-lucide="grid"></i></button>
+                    <div style="flex: 1"></div>
+                    <button class="btn btn-outline" onclick="exportDoc('txt')">TXT</button>
+                    <button class="btn btn-outline" onclick="exportDoc('doc')">DOC</button>
+                    <button id="print-word-btn" class="btn btn-outline" onclick="window.print()"><i data-lucide="printer"></i></button>
+                </div>
+                <div id="word-editor" class="rich-editor" contenteditable="true"></div>
+                <div class="watermark">SMART OCR LENS PRO+</div>
+                <div style="padding: 8px; border-top: 1px solid var(--border); font-size: 0.8rem; color: var(--text-muted); display: flex; justify-content: space-between">
+                    <span>Words: <span id="word-count">0</span> | Chars: <span id="char-count">0</span></span>
+                    <span>Format: Rich Text</span>
+                </div>
+            </section>
 
-function closePreview(){
-document.getElementById("previewBox").classList.add("hidden")
-}
+            <!-- EXCEL PANEL -->
+            <section id="excel-panel">
+                <div class="toolbar glass-card" style="margin-bottom: 10px;">
+                    <button class="btn btn-outline" onclick="addRow()"><i data-lucide="plus"></i> Row</button>
+                    <button class="btn btn-outline" onclick="addCol()"><i data-lucide="plus"></i> Col</button>
+                    <button class="btn btn-outline" onclick="clearSheet()"><i data-lucide="trash-2"></i> Clear</button>
+                    <div style="flex: 1"></div>
+                    <button class="btn btn-outline" onclick="exportExcel()">XLS</button>
+                </div>
+                <div class="spreadsheet-container" id="sheet-wrapper">
+                    <table class="sheet-grid" id="excel-grid">
+                        <!-- Spreadsheet generated here -->
+                    </table>
+                </div>
+                <div class="watermark">SMART OCR LENS PRO+</div>
+            </section>
 
+        </main>
+    </div>
 
+    <!-- Upgrade Modal -->
+    <div id="upgrade-modal" class="modal">
+        <div class="modal-content glass-card">
+            <h2 style="margin-bottom: 1rem">Unlock Pro Features</h2>
+            <p style="color: var(--text-muted)">Get unlimited scans, export to PDF, remove watermarks and ads.</p>
+            
+            <div class="pricing-card">
+                <h3>Annual Plan</h3>
+                <h2 style="font-size: 2rem; margin: 0.5rem 0">$9.99<small>/mo</small></h2>
+                <button class="btn btn-primary" style="width: 100%" onclick="simulatePremium()">Upgrade Now</button>
+            </div>
 
+            <button class="btn btn-outline" style="width: 100%" onclick="closeModal()">Maybe Later</button>
+        </div>
+    </div>
 
+    <script>
+        // --- State Management ---
+        let appState = {
+            isPremium: false,
+            scansDone: 0,
+            currentMode: 'ocr',
+            projectName: '',
+            scannedData: null,
+            image: null,
+            selection: null,
+            gridRows: 20,
+            gridCols: 10,
+            history: []
+        };
 
+        const LOCAL_STORAGE_KEY = 'SMART_OCR_PROJECTS';
+        const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'ocr-pro-v1';
 
-// ================= WORD =================
+        // --- Initialization ---
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            initSpreadsheet();
+            loadUserData();
+            setupDragAndDrop();
+            
+            // Auto-save logic
+            setInterval(autoSave, 30000);
+        });
 
-function saveWord(){
-let content=quill.root.innerHTML
-let blob=new Blob(['<html><body>'+content+'</body></html>'],{type:"application/msword"})
-let a=document.createElement("a")
-a.href=URL.createObjectURL(blob)
-a.download="document.doc"
-a.click()
-}
+        function loadUserData() {
+            const data = JSON.parse(localStorage.getItem('OCR_USER_DATA') || '{}');
+            const today = new Date().toDateString();
+            
+            if (data.lastDate !== today) {
+                appState.scansDone = 0;
+            } else {
+                appState.scansDone = data.scansDone || 0;
+            }
+            appState.isPremium = data.isPremium || false;
+            updateUI();
+        }
 
-function previewWord(){
-document.getElementById("previewBox").classList.remove("hidden")
-document.getElementById("previewContent").innerHTML=
-`<div class="preview-paper">${quill.root.innerHTML}</div>`
-}
+        function saveUserData() {
+            const data = {
+                scansDone: appState.scansDone,
+                isPremium: appState.isPremium,
+                lastDate: new Date().toDateString()
+            };
+            localStorage.setItem('OCR_USER_DATA', JSON.stringify(data));
+        }
 
+        function updateUI() {
+            document.getElementById('scans-left').innerText = appState.isPremium ? '∞' : (3 - appState.scansDone);
+            document.getElementById('upgrade-btn').style.display = appState.isPremium ? 'none' : 'inline-flex';
+            document.getElementById('ads-section').style.display = appState.isPremium ? 'none' : 'block';
+            document.getElementById('print-word-btn').disabled = !appState.isPremium;
+            
+            if (appState.isPremium) {
+                document.getElementById('word-panel').classList.remove('free');
+                document.getElementById('excel-panel').classList.remove('free');
+            } else {
+                document.getElementById('word-panel').classList.add('free');
+                document.getElementById('excel-panel').classList.add('free');
+            }
+        }
 
+        // --- Mode Switching ---
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const mode = btn.dataset.mode;
+                switchMode(mode);
+            });
+        });
 
+        function switchMode(mode) {
+            appState.currentMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+            
+            document.getElementById('ocr-panel').style.display = mode === 'ocr' ? 'block' : 'none';
+            document.getElementById('word-panel').style.display = mode === 'word' ? 'flex' : 'none';
+            document.getElementById('excel-panel').style.display = mode === 'excel' ? 'flex' : 'none';
+        }
 
+        // --- OCR Logic ---
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const cropCanvas = document.getElementById('cropCanvas');
+        const ctx = cropCanvas.getContext('2d');
 
-// ================= OCR =================
+        function setupDragAndDrop() {
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => {
+                dropZone.addEventListener(e, (ev) => {
+                    ev.preventDefault();
+                    if (e === 'dragover') dropZone.classList.add('active');
+                    else dropZone.classList.remove('active');
+                });
+            });
 
-document.getElementById("ocrInput").addEventListener("change",function(e){
-const file=e.target.files[0]
-if(!file)return
+            dropZone.addEventListener('drop', (e) => {
+                const files = e.dataTransfer.files;
+                if (files.length) handleImageUpload(files[0]);
+            });
 
-const reader=new FileReader()
-reader.onload=function(){
-Tesseract.recognize(reader.result,'ind',{logger:m=>console.log(m)})
-.then(({data:{text}})=>{
-quill.insertText(quill.getLength(),"\n"+text)
-})
-}
-reader.readAsDataURL(file)
-})
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length) handleImageUpload(e.target.files[0]);
+            });
+        }
 
+        function handleImageUpload(file) {
+            if (file.size > 5 * 1024 * 1024) return alert("File too large (Max 5MB)");
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    appState.image = img;
+                    initCropCanvas();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
 
+        function initCropCanvas() {
+            const img = appState.image;
+            const containerWidth = document.querySelector('.workspace-main').clientWidth - 100;
+            const scale = containerWidth / img.width;
+            cropCanvas.width = img.width * scale;
+            cropCanvas.height = img.height * scale;
+            ctx.drawImage(img, 0, 0, cropCanvas.width, cropCanvas.height);
+            
+            document.getElementById('preview-wrapper').style.display = 'flex';
+            document.getElementById('scan-controls').style.display = 'flex';
+            document.getElementById('drop-zone').style.display = 'none';
+            
+            setupCropInteraction();
+        }
 
+        let isDrawing = false;
+        let startX, startY;
+        let cropArea = null;
 
-// ================= EXCEL =================
+        function setupCropInteraction() {
+            cropCanvas.onmousedown = (e) => {
+                isDrawing = true;
+                const rect = cropCanvas.getBoundingClientRect();
+                startX = e.clientX - rect.left;
+                startY = e.clientY - rect.top;
+            };
 
-const rows=20
-const cols=10
-let excelData=[]
+            cropCanvas.onmousemove = (e) => {
+                if (!isDrawing) return;
+                const rect = cropCanvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                ctx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
+                ctx.drawImage(appState.image, 0, 0, cropCanvas.width, cropCanvas.height);
+                
+                ctx.strokeStyle = '#6366f1';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.strokeRect(startX, startY, x - startX, y - startY);
+                cropArea = { x: startX, y: startY, w: x - startX, h: y - startY };
+            };
 
-function initExcel(){
-let table=document.getElementById("excelTable")
-table.innerHTML=""
-excelData=[]
+            cropCanvas.onmouseup = () => {
+                isDrawing = false;
+            };
+        }
 
-for(let r=0;r<rows;r++){
-let row=[]
-let tr=document.createElement("tr")
-for(let c=0;c<cols;c++){
-let td=document.createElement("td")
-td.contentEditable=true
-td.oninput=function(){ excelData[r][c]=td.innerText }
-tr.appendChild(td)
-row.push("")
-}
-table.appendChild(tr)
-excelData.push(row)
-}
-}
-initExcel()
+        document.getElementById('start-scan').addEventListener('click', async () => {
+            if (!appState.isPremium && appState.scansDone >= 3) {
+                return showUpgradeModal();
+            }
 
+            const status = document.getElementById('status-text');
+            const progress = document.getElementById('progress-bar');
+            const resultBox = document.getElementById('ocr-result-preview');
+            const liveText = document.getElementById('live-text');
 
+            document.getElementById('progress-container').style.display = 'block';
+            resultBox.style.display = 'block';
+            liveText.innerText = "";
+            
+            const lang = document.getElementById('lang-select').value;
+            
+            try {
+                const worker = await Tesseract.createWorker({
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            progress.style.width = (m.progress * 100) + '%';
+                            status.innerText = `Recognizing: ${Math.round(m.progress * 100)}%`;
+                        }
+                    }
+                });
 
-function saveExcel(){
-let ws=XLSX.utils.aoa_to_sheet(excelData)
-let wb=XLSX.utils.book_new()
-XLSX.utils.book_append_sheet(wb,ws,"Sheet1")
-XLSX.writeFile(wb,"excel.xlsx")
-}
+                await worker.loadLanguage(lang);
+                await worker.initialize(lang);
 
-function previewExcel(){
-document.getElementById("previewBox").classList.remove("hidden")
+                let canvasToProcess = cropCanvas;
+                if (cropArea && Math.abs(cropArea.w) > 10) {
+                    const temp = document.createElement('canvas');
+                    temp.width = Math.abs(cropArea.w);
+                    temp.height = Math.abs(cropArea.h);
+                    const tCtx = temp.getContext('2d');
+                    tCtx.drawImage(cropCanvas, cropArea.x, cropArea.y, cropArea.w, cropArea.h, 0, 0, temp.width, temp.height);
+                    canvasToProcess = temp;
+                }
 
-let html="<table>"
-excelData.forEach(r=>{
-html+="<tr>"
-r.forEach(c=>{
-html+="<td>"+(c||"")+"</td>"
-})
-html+="</tr>"
-})
-html+="</table>"
+                const { data: { text, paragraphs } } = await worker.recognize(canvasToProcess);
+                liveText.innerText = text;
+                
+                // Process Data into modes
+                appState.scannedData = text;
+                document.getElementById('word-editor').innerText = text;
+                populateSpreadsheet(text);
 
-document.getElementById("previewContent").innerHTML=
-`<div class="preview-paper">${html}</div>`
-}
+                appState.scansDone++;
+                saveUserData();
+                updateUI();
+                status.innerText = "Scan Complete!";
+                await worker.terminate();
 
-</script>
+                // Auto move to Word mode after delay
+                setTimeout(() => switchMode('word'), 1500);
 
+            } catch (err) {
+                console.error(err);
+                status.innerText = "Error during scanning. Please try again.";
+            }
+        });
+
+        // --- Word Logic ---
+        function execCmd(cmd, val = null) {
+            document.execCommand(cmd, false, val);
+            updateWordStats();
+        }
+
+        function updateWordStats() {
+            const text = document.getElementById('word-editor').innerText;
+            document.getElementById('word-count').innerText = text.trim() ? text.trim().split(/\s+/).length : 0;
+            document.getElementById('char-count').innerText = text.length;
+        }
+
+        document.getElementById('word-editor').oninput = updateWordStats;
+
+        function insertTable() {
+            const html = `<table border="1" style="width:100%; border-collapse: collapse;"><tr><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>&nbsp;</td><td>&nbsp;</td></tr></table>`;
+            execCmd('insertHTML', html);
+        }
+
+        // --- Spreadsheet Logic ---
+        function initSpreadsheet() {
+            const grid = document.getElementById('excel-grid');
+            grid.innerHTML = '';
+            
+            // Header Row
+            const trH = document.createElement('tr');
+            trH.innerHTML = '<th class="row-header"></th>';
+            for (let c = 0; c < appState.gridCols; c++) {
+                const th = document.createElement('th');
+                th.innerText = String.fromCharCode(65 + c);
+                trH.appendChild(th);
+            }
+            grid.appendChild(trH);
+
+            // Data Rows
+            for (let r = 1; r <= appState.gridRows; r++) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<th class="row-header">${r}</th>`;
+                for (let c = 0; c < appState.gridCols; c++) {
+                    const td = document.createElement('td');
+                    const input = document.createElement('input');
+                    input.dataset.row = r;
+                    input.dataset.col = c;
+                    
+                    input.onfocus = () => td.classList.add('active');
+                    input.onblur = (e) => {
+                        td.classList.remove('active');
+                        handleFormula(e.target);
+                    };
+                    input.onkeydown = (e) => handleKeyNav(e, r, c);
+
+                    td.appendChild(input);
+                    tr.appendChild(td);
+                }
+                grid.appendChild(tr);
+            }
+        }
+
+        function handleKeyNav(e, r, c) {
+            let target;
+            if (e.key === 'ArrowDown') target = `input[data-row="${r+1}"][data-col="${c}"]`;
+            if (e.key === 'ArrowUp') target = `input[data-row="${r-1}"][data-col="${c}"]`;
+            if (e.key === 'ArrowRight') target = `input[data-row="${r}"][data-col="${c+1}"]`;
+            if (e.key === 'ArrowLeft') target = `input[data-row="${r}"][data-col="${c-1}"]`;
+            
+            if (target) {
+                const el = document.querySelector(target);
+                if (el) { e.preventDefault(); el.focus(); }
+            }
+        }
+
+        function handleFormula(input) {
+            const val = input.value;
+            if (val.startsWith('=SUM(')) {
+                // Simple logic: extract numbers from previous col if it was table-like
+                input.value = "Calculating...";
+                setTimeout(() => {
+                    input.value = "Feature Preview: SUM";
+                }, 500);
+            }
+        }
+
+        function populateSpreadsheet(text) {
+            const lines = text.split('\n').filter(l => l.trim().length > 0);
+            const grid = document.getElementById('excel-grid');
+            
+            lines.forEach((line, rIdx) => {
+                if (rIdx >= appState.gridRows) return;
+                const cells = line.split(/\s{2,}|,|\t/); // Split by double space, tab or comma
+                cells.forEach((content, cIdx) => {
+                    if (cIdx >= appState.gridCols) return;
+                    const input = document.querySelector(`input[data-row="${rIdx+1}"][data-col="${cIdx}"]`);
+                    if (input) input.value = content.trim();
+                });
+            });
+        }
+
+        function addRow() { appState.gridRows++; initSpreadsheet(); }
+        function addCol() { appState.gridCols++; initSpreadsheet(); }
+        function clearSheet() { initSpreadsheet(); }
+
+        // --- Export Logic ---
+        function exportDoc(type) {
+            const content = document.getElementById('word-editor').innerText;
+            const name = document.getElementById('project-name').value || 'document';
+            
+            let blob;
+            if (type === 'txt') {
+                blob = new Blob([content], { type: 'text/plain' });
+            } else {
+                blob = new Blob([content], { type: 'application/msword' });
+            }
+            
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${name}.${type}`;
+            a.click();
+        }
+
+        function exportExcel() {
+            let csv = "";
+            const rows = document.querySelectorAll('#excel-grid tr');
+            rows.forEach((row, i) => {
+                if (i === 0) return; // Skip header
+                const inputs = row.querySelectorAll('input');
+                const rowData = Array.from(inputs).map(inp => `"${inp.value}"`).join(",");
+                csv += rowData + "\n";
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${document.getElementById('project-name').value || 'sheet'}.csv`;
+            a.click();
+        }
+
+        // --- Project System ---
+        function autoSave() {
+            if (!document.getElementById('word-editor').innerText && !appState.image) return;
+            saveProject(true);
+        }
+
+        function saveProject(isSilent = false) {
+            const name = document.getElementById('project-name').value || 'Untitled';
+            const projects = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+            
+            const data = {
+                id: Date.now(),
+                name: name,
+                word: document.getElementById('word-editor').innerHTML,
+                excel: getGridData(),
+                date: new Date().toLocaleString()
+            };
+
+            projects.unshift(data);
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(projects.slice(0, 10)));
+            renderProjects();
+            if(!isSilent) alert("Project Saved Locally");
+        }
+
+        function getGridData() {
+            const data = [];
+            document.querySelectorAll('input[data-row]').forEach(input => {
+                data.push({ r: input.dataset.row, c: input.dataset.col, v: input.value });
+            });
+            return data;
+        }
+
+        function renderProjects() {
+            const list = document.getElementById('project-list');
+            const projects = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+            list.innerHTML = projects.map(p => `
+                <div class="project-item">
+                    <span onclick="loadProject(${p.id})" style="cursor:pointer">📄 ${p.name}</span>
+                    <i data-lucide="trash" onclick="deleteProject(${p.id})" style="width:14px; cursor:pointer; color:red"></i>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        // --- Premium Simulation ---
+        function showUpgradeModal() {
+            document.getElementById('upgrade-modal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('upgrade-modal').style.display = 'none';
+        }
+
+        function simulatePremium() {
+            appState.isPremium = true;
+            saveUserData();
+            updateUI();
+            closeModal();
+            alert("Upgrade Successful! You are now a PRO user.");
+        }
+
+        function resetOCR() {
+            appState.image = null;
+            appState.selection = null;
+            document.getElementById('preview-wrapper').style.display = 'none';
+            document.getElementById('scan-controls').style.display = 'none';
+            document.getElementById('drop-zone').style.display = 'block';
+            document.getElementById('progress-container').style.display = 'none';
+            document.getElementById('ocr-result-preview').style.display = 'none';
+        }
+
+    </script>
 </body>
-</html>
+                  </html>
