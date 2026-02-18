@@ -98,12 +98,14 @@ box-shadow:0 0 15px rgba(0,0,0,.15);
 <button onclick="addRow()" class="primary">➕ Baris</button>
 <button onclick="addCol()" class="primary">➕ Kolom</button>
 <button onclick="makeBold()" class="success">B</button>
+<button onclick="setFontSize()" class="primary">Size</button>
+<button onclick="setFontFamily()" class="primary">Font</button>
 <button onclick="alignLeft()" class="primary">Left</button>
 <button onclick="alignCenter()" class="primary">Center</button>
 <button onclick="alignRight()" class="primary">Right</button>
-<button onclick="textColor()" class="danger">Warna Teks</button>
-<button onclick="bgColor()" class="gray">Warna Tabel</button>
-<button onclick="exportExcel()" class="success">⬇️ Export XLSX</button>
+<button onclick="textColor()" class="danger">Teks</button>
+<button onclick="bgColor()" class="gray">Tabel</button>
+<button onclick="exportExcel()" class="success">⬇️ XLSX</button>
 <button onclick="previewExcel()" class="danger">👁 Preview</button>
 <button onclick="printExcel()" class="gray">🖨️ Print</button>
 </div>
@@ -167,98 +169,9 @@ localStorage.setItem("wordProject",quill.root.innerHTML);
 alert("Word tersimpan!");
 }
 
-/* ================= OCR ================= */
-const imageInput=document.getElementById("imageInput");
-const previewImage=document.getElementById("previewImage");
-const imageContainer=document.getElementById("imageContainer");
-const selectionBox=document.getElementById("selectionBox");
-
-let startX,startY,endX,endY,isSelecting=false,selectedArea=null;
-
-imageInput.addEventListener("change",e=>{
-const file=e.target.files[0];
-if(!file) return;
-const reader=new FileReader();
-reader.onload=ev=>{
-previewImage.src=ev.target.result;
-previewImage.style.display="block";
-};
-reader.readAsDataURL(file);
-});
-
-function getPos(e){
-const rect=imageContainer.getBoundingClientRect();
-if(e.touches){
-return {x:e.touches[0].clientX-rect.left,y:e.touches[0].clientY-rect.top};
-}
-return {x:e.clientX-rect.left,y:e.clientY-rect.top};
-}
-
-function startSelect(e){
-if(!previewImage.src) return;
-isSelecting=true;
-selectionBox.style.display="block";
-const pos=getPos(e);
-startX=pos.x; startY=pos.y;
-selectionBox.style.left=startX+"px";
-selectionBox.style.top=startY+"px";
-selectionBox.style.width="0px";
-selectionBox.style.height="0px";
-}
-
-function moveSelect(e){
-if(!isSelecting) return;
-e.preventDefault();
-const pos=getPos(e);
-endX=pos.x; endY=pos.y;
-selectionBox.style.width=Math.abs(endX-startX)+"px";
-selectionBox.style.height=Math.abs(endY-startY)+"px";
-selectionBox.style.left=Math.min(startX,endX)+"px";
-selectionBox.style.top=Math.min(startY,endY)+"px";
-}
-
-function endSelect(){
-isSelecting=false;
-selectedArea={
-x:parseInt(selectionBox.style.left),
-y:parseInt(selectionBox.style.top),
-width:parseInt(selectionBox.style.width),
-height:parseInt(selectionBox.style.height)
-};
-}
-
-imageContainer.addEventListener("mousedown",startSelect);
-imageContainer.addEventListener("mousemove",moveSelect);
-imageContainer.addEventListener("mouseup",endSelect);
-imageContainer.addEventListener("touchstart",startSelect);
-imageContainer.addEventListener("touchmove",moveSelect);
-imageContainer.addEventListener("touchend",endSelect);
-
-async function scanSelected(){
-if(!previewImage.src||!selectedArea) return alert("Pilih area dulu!");
-const canvas=document.createElement("canvas");
-const ctx=canvas.getContext("2d");
-const img=new Image();
-img.src=previewImage.src;
-img.onload=async()=>{
-const scaleX=img.naturalWidth/previewImage.clientWidth;
-const scaleY=img.naturalHeight/previewImage.clientHeight;
-canvas.width=selectedArea.width*scaleX;
-canvas.height=selectedArea.height*scaleY;
-ctx.drawImage(img,
-selectedArea.x*scaleX,
-selectedArea.y*scaleY,
-selectedArea.width*scaleX,
-selectedArea.height*scaleY,
-0,0,canvas.width,canvas.height);
-const result=await Tesseract.recognize(canvas,"ind+eng");
-quill.root.innerHTML+="<p>"+result.data.text+"</p>";
-};
-}
-
 /* ================= EXCEL ================= */
 let hot;
-let cellMeta={};
+let cellStyles={};
 
 function initExcel(){
 hot=new Handsontable(document.getElementById('spreadsheet'),{
@@ -267,15 +180,24 @@ rowHeaders:true,
 colHeaders:true,
 licenseKey:'non-commercial-and-evaluation',
 cells:function(row,col){
-const meta=cellMeta[row+"-"+col]||{};
-return meta;
+return {
+renderer:function(instance,td,row,col,prop,value){
+Handsontable.renderers.TextRenderer.apply(this,arguments);
+let style=cellStyles[row+"-"+col];
+if(style){
+if(style.bold) td.style.fontWeight="bold";
+if(style.fontSize) td.style.fontSize=style.fontSize+"px";
+if(style.fontFamily) td.style.fontFamily=style.fontFamily;
+if(style.color) td.style.color=style.color;
+if(style.bg) td.style.background=style.bg;
+if(style.align) td.style.textAlign=style.align;
+}
+}
+};
 }
 });
 }
 setTimeout(initExcel,500);
-
-function addRow(){hot.alter('insert_row');}
-function addCol(){hot.alter('insert_col');}
 
 function getSelectedCell(){
 const sel=hot.getSelected();
@@ -283,51 +205,50 @@ if(!sel) return null;
 return {row:sel[0][0],col:sel[0][1]};
 }
 
+function updateStyle(prop,val){
+const cell=getSelectedCell();
+if(!cell) return;
+let key=cell.row+"-"+cell.col;
+if(!cellStyles[key]) cellStyles[key]={};
+cellStyles[key][prop]=val;
+hot.render();
+}
+
 function makeBold(){
 const cell=getSelectedCell();
 if(!cell) return;
-cellMeta[cell.row+"-"+cell.col]={renderer:function(instance,td,row,col,prop,value){
-Handsontable.renderers.TextRenderer.apply(this,arguments);
-td.style.fontWeight="bold";
-}};
+let key=cell.row+"-"+cell.col;
+if(!cellStyles[key]) cellStyles[key]={};
+cellStyles[key].bold=!cellStyles[key].bold;
 hot.render();
 }
 
-function alignLeft(){setAlign("left");}
-function alignCenter(){setAlign("center");}
-function alignRight(){setAlign("right");}
-
-function setAlign(alignment){
-const cell=getSelectedCell();
-if(!cell) return;
-cellMeta[cell.row+"-"+cell.col]={renderer:function(instance,td,row,col,prop,value){
-Handsontable.renderers.TextRenderer.apply(this,arguments);
-td.style.textAlign=alignment;
-}};
-hot.render();
+function setFontSize(){
+let size=prompt("Ukuran font (contoh 12)");
+if(size) updateStyle("fontSize",size);
 }
+
+function setFontFamily(){
+let font=prompt("Font (contoh Arial)");
+if(font) updateStyle("fontFamily",font);
+}
+
+function alignLeft(){updateStyle("align","left");}
+function alignCenter(){updateStyle("align","center");}
+function alignRight(){updateStyle("align","right");}
 
 function textColor(){
-const color=prompt("Masukkan warna teks (contoh: red atau #ff0000)");
-if(!color) return;
-const cell=getSelectedCell();
-cellMeta[cell.row+"-"+cell.col]={renderer:function(instance,td,row,col,prop,value){
-Handsontable.renderers.TextRenderer.apply(this,arguments);
-td.style.color=color;
-}};
-hot.render();
+let color=prompt("Warna teks (contoh red atau #ff0000)");
+if(color) updateStyle("color",color);
 }
 
 function bgColor(){
-const color=prompt("Masukkan warna background (contoh: yellow atau #ffff00)");
-if(!color) return;
-const cell=getSelectedCell();
-cellMeta[cell.row+"-"+cell.col]={renderer:function(instance,td,row,col,prop,value){
-Handsontable.renderers.TextRenderer.apply(this,arguments);
-td.style.background=color;
-}};
-hot.render();
+let color=prompt("Warna tabel (contoh yellow atau #ffff00)");
+if(color) updateStyle("bg",color);
 }
+
+function addRow(){hot.alter('insert_row');}
+function addCol(){hot.alter('insert_col');}
 
 function exportExcel(){
 let wb=XLSX.utils.book_new();
@@ -337,11 +258,33 @@ XLSX.writeFile(wb,"SmartOCR.xlsx");
 }
 
 function previewExcel(){
+let data=hot.getData();
 let table="<table border='1' style='border-collapse:collapse;width:100%'>";
-hot.getData().forEach(r=>{
-table+="<tr>"+r.map(c=>"<td style='padding:6px'>"+(c||"")+"</td>").join("")+"</tr>";
+
+data.forEach((row,r)=>{
+if(row.some(cell=>cell!=="")){
+table+="<tr>";
+row.forEach((cell,c)=>{
+if(cell!==""){
+let style=cellStyles[r+"-"+c]||{};
+let s="";
+if(style.bold) s+="font-weight:bold;";
+if(style.fontSize) s+="font-size:"+style.fontSize+"px;";
+if(style.fontFamily) s+="font-family:"+style.fontFamily+";";
+if(style.color) s+="color:"+style.color+";";
+if(style.bg) s+="background:"+style.bg+";";
+if(style.align) s+="text-align:"+style.align+";";
+table+="<td style='padding:6px;"+s+"'>"+cell+"</td>";
+}else{
+table+="<td></td>";
+}
 });
+table+="</tr>";
+}
+});
+
 table+="</table>";
+
 excelPreview.innerHTML="<div class='print-paper'>"+table+"</div>";
 excelPreviewCard.classList.remove('hidden');
 }
