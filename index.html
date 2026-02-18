@@ -45,6 +45,35 @@ margin:auto;
 padding:40px;
 box-shadow:0 0 15px rgba(0,0,0,.15);
 }
+
+/* ===== EXCEL PRO UI ===== */
+.excel-header-bar{
+background:#f8fafc;
+padding:8px;
+border-radius:10px;
+margin-bottom:10px;
+box-shadow:0 3px 8px rgba(0,0,0,.05);
+}
+.formula-bar{
+display:flex;
+gap:8px;
+align-items:center;
+margin-top:8px;
+}
+#cellNameBox{
+width:80px;
+padding:6px;
+background:#e5e7eb;
+border-radius:6px;
+text-align:center;
+font-weight:600;
+}
+#formulaInput{
+flex:1;
+padding:6px;
+border-radius:6px;
+border:1px solid #ccc;
+}
 </style>
 </head>
 <body>
@@ -63,7 +92,6 @@ box-shadow:0 0 15px rgba(0,0,0,.15);
 
 <!-- WORD MODE -->
 <div id="wordMode">
-
 <div class="card">
 <input type="file" accept="image/*" id="imageInput">
 <div id="imageContainer">
@@ -88,13 +116,14 @@ box-shadow:0 0 15px rgba(0,0,0,.15);
 <h3>Preview Word</h3>
 <div id="wordPreview" class="preview-box"></div>
 </div>
-
 </div>
 
 <!-- EXCEL MODE -->
 <div id="excelMode" class="hidden">
 
-<div class="card">
+<div class="excel-header-bar">
+
+<div style="display:flex;flex-wrap:wrap;gap:6px;">
 <button onclick="addRow()" class="primary">➕ Baris</button>
 <button onclick="addCol()" class="primary">➕ Kolom</button>
 <button onclick="makeBold()" class="success">B</button>
@@ -106,6 +135,13 @@ box-shadow:0 0 15px rgba(0,0,0,.15);
 <button onclick="exportExcel()" class="success">⬇️ Export XLSX</button>
 <button onclick="previewExcel()" class="danger">👁 Preview</button>
 <button onclick="printExcel()" class="gray">🖨️ Print</button>
+</div>
+
+<div class="formula-bar">
+<div id="cellNameBox">A1</div>
+<input type="text" id="formulaInput" placeholder="Ketik isi cell di sini...">
+</div>
+
 </div>
 
 <div class="card">
@@ -123,140 +159,15 @@ box-shadow:0 0 15px rgba(0,0,0,.15);
 
 <script>
 
-/* ================= WORD ================= */
-let quill=new Quill('#editor',{
-theme:'snow',
-modules:{
-toolbar:[
-[{header:[1,2,3,false]}],
-['bold','italic','underline'],
-[{list:'ordered'},{list:'bullet'}],
-[{align:[]}],
-[{color:[]},{background:[]}],
-['clean']
-]
-}
-});
+/* WORD */
+let quill=new Quill('#editor',{theme:'snow'});
+function previewWord(){wordPreview.innerHTML="<div class='print-paper'>"+quill.root.innerHTML+"</div>";wordPreviewCard.classList.remove('hidden');}
+function printWord(){let w=window.open("");w.document.write("<html><body onload='window.print()'>"+quill.root.innerHTML+"</body></html>");}
+async function downloadPDF(){const {jsPDF}=window.jspdf;let doc=new jsPDF();doc.html(quill.root.innerHTML,{callback:function(doc){doc.save("SmartOCR.pdf");}});}
+function downloadDOCX(){const {Document,Packer,Paragraph}=docx;let doc=new Document({sections:[{children:[new Paragraph(quill.getText())]}]});Packer.toBlob(doc).then(blob=>saveAs(blob,"SmartOCR.docx"));}
+function saveWordProject(){localStorage.setItem("wordProject",quill.root.innerHTML);alert("Word tersimpan!");}
 
-function previewWord(){
-wordPreview.innerHTML="<div class='print-paper'>"+quill.root.innerHTML+"</div>";
-wordPreviewCard.classList.remove('hidden');
-}
-
-function printWord(){
-let w=window.open("");
-w.document.write("<html><body onload='window.print()'>"+quill.root.innerHTML+"</body></html>");
-}
-
-async function downloadPDF(){
-const {jsPDF}=window.jspdf;
-let doc=new jsPDF();
-doc.html(quill.root.innerHTML,{callback:function(doc){doc.save("SmartOCR.pdf");}});
-}
-
-function downloadDOCX(){
-const {Document,Packer,Paragraph}=docx;
-let doc=new Document({
-sections:[{children:[new Paragraph(quill.getText())]}]
-});
-Packer.toBlob(doc).then(blob=>saveAs(blob,"SmartOCR.docx"));
-}
-
-function saveWordProject(){
-localStorage.setItem("wordProject",quill.root.innerHTML);
-alert("Word tersimpan!");
-}
-
-/* ================= OCR ================= */
-const imageInput=document.getElementById("imageInput");
-const previewImage=document.getElementById("previewImage");
-const imageContainer=document.getElementById("imageContainer");
-const selectionBox=document.getElementById("selectionBox");
-
-let startX,startY,endX,endY,isSelecting=false,selectedArea=null;
-
-imageInput.addEventListener("change",e=>{
-const file=e.target.files[0];
-if(!file) return;
-const reader=new FileReader();
-reader.onload=ev=>{
-previewImage.src=ev.target.result;
-previewImage.style.display="block";
-};
-reader.readAsDataURL(file);
-});
-
-function getPos(e){
-const rect=imageContainer.getBoundingClientRect();
-if(e.touches){
-return {x:e.touches[0].clientX-rect.left,y:e.touches[0].clientY-rect.top};
-}
-return {x:e.clientX-rect.left,y:e.clientY-rect.top};
-}
-
-function startSelect(e){
-if(!previewImage.src) return;
-isSelecting=true;
-selectionBox.style.display="block";
-const pos=getPos(e);
-startX=pos.x; startY=pos.y;
-selectionBox.style.left=startX+"px";
-selectionBox.style.top=startY+"px";
-selectionBox.style.width="0px";
-selectionBox.style.height="0px";
-}
-
-function moveSelect(e){
-if(!isSelecting) return;
-e.preventDefault();
-const pos=getPos(e);
-endX=pos.x; endY=pos.y;
-selectionBox.style.width=Math.abs(endX-startX)+"px";
-selectionBox.style.height=Math.abs(endY-startY)+"px";
-selectionBox.style.left=Math.min(startX,endX)+"px";
-selectionBox.style.top=Math.min(startY,endY)+"px";
-}
-
-function endSelect(){
-isSelecting=false;
-selectedArea={
-x:parseInt(selectionBox.style.left),
-y:parseInt(selectionBox.style.top),
-width:parseInt(selectionBox.style.width),
-height:parseInt(selectionBox.style.height)
-};
-}
-
-imageContainer.addEventListener("mousedown",startSelect);
-imageContainer.addEventListener("mousemove",moveSelect);
-imageContainer.addEventListener("mouseup",endSelect);
-imageContainer.addEventListener("touchstart",startSelect);
-imageContainer.addEventListener("touchmove",moveSelect);
-imageContainer.addEventListener("touchend",endSelect);
-
-async function scanSelected(){
-if(!previewImage.src||!selectedArea) return alert("Pilih area dulu!");
-const canvas=document.createElement("canvas");
-const ctx=canvas.getContext("2d");
-const img=new Image();
-img.src=previewImage.src;
-img.onload=async()=>{
-const scaleX=img.naturalWidth/previewImage.clientWidth;
-const scaleY=img.naturalHeight/previewImage.clientHeight;
-canvas.width=selectedArea.width*scaleX;
-canvas.height=selectedArea.height*scaleY;
-ctx.drawImage(img,
-selectedArea.x*scaleX,
-selectedArea.y*scaleY,
-selectedArea.width*scaleX,
-selectedArea.height*scaleY,
-0,0,canvas.width,canvas.height);
-const result=await Tesseract.recognize(canvas,"ind+eng");
-quill.root.innerHTML+="<p>"+result.data.text+"</p>";
-};
-}
-
-/* ================= EXCEL ================= */
+/* EXCEL */
 let hot;
 let cellMeta={};
 
@@ -266,13 +177,28 @@ data:Array.from({length:50},()=>Array(20).fill("")),
 rowHeaders:true,
 colHeaders:true,
 licenseKey:'non-commercial-and-evaluation',
-cells:function(row,col){
-const meta=cellMeta[row+"-"+col]||{};
-return meta;
-}
+afterSelection:function(r,c){updateFormulaBar(r,c);},
+afterChange:function(){updateFormulaBarFromCell();},
+cells:function(row,col){return cellMeta[row+"-"+col]||{};}
 });
 }
 setTimeout(initExcel,500);
+
+function updateFormulaBar(row,col){
+let colLetter=String.fromCharCode(65+col);
+cellNameBox.innerText=colLetter+(row+1);
+formulaInput.value=hot.getDataAtCell(row,col)||"";
+}
+function updateFormulaBarFromCell(){
+const sel=hot.getSelected();
+if(!sel) return;
+updateFormulaBar(sel[0][0],sel[0][1]);
+}
+formulaInput.addEventListener("input",function(){
+const sel=hot.getSelected();
+if(!sel) return;
+hot.setDataAtCell(sel[0][0],sel[0][1],this.value);
+});
 
 function addRow(){hot.alter('insert_row');}
 function addCol(){hot.alter('insert_col');}
@@ -284,48 +210,33 @@ return {row:sel[0][0],col:sel[0][1]};
 }
 
 function makeBold(){
-const cell=getSelectedCell();
-if(!cell) return;
-cellMeta[cell.row+"-"+cell.col]={renderer:function(instance,td,row,col,prop,value){
-Handsontable.renderers.TextRenderer.apply(this,arguments);
-td.style.fontWeight="bold";
-}};
+const cell=getSelectedCell(); if(!cell) return;
+cellMeta[cell.row+"-"+cell.col]={renderer:function(i,td){Handsontable.renderers.TextRenderer.apply(this,arguments);td.style.fontWeight="bold";}};
 hot.render();
 }
 
 function alignLeft(){setAlign("left");}
 function alignCenter(){setAlign("center");}
 function alignRight(){setAlign("right");}
-
-function setAlign(alignment){
-const cell=getSelectedCell();
-if(!cell) return;
-cellMeta[cell.row+"-"+cell.col]={renderer:function(instance,td,row,col,prop,value){
-Handsontable.renderers.TextRenderer.apply(this,arguments);
-td.style.textAlign=alignment;
-}};
+function setAlign(a){
+const cell=getSelectedCell(); if(!cell) return;
+cellMeta[cell.row+"-"+cell.col]={renderer:function(i,td){Handsontable.renderers.TextRenderer.apply(this,arguments);td.style.textAlign=a;}};
 hot.render();
 }
 
 function textColor(){
-const color=prompt("Masukkan warna teks (contoh: red atau #ff0000)");
+const color=prompt("Masukkan warna teks:");
 if(!color) return;
 const cell=getSelectedCell();
-cellMeta[cell.row+"-"+cell.col]={renderer:function(instance,td,row,col,prop,value){
-Handsontable.renderers.TextRenderer.apply(this,arguments);
-td.style.color=color;
-}};
+cellMeta[cell.row+"-"+cell.col]={renderer:function(i,td){Handsontable.renderers.TextRenderer.apply(this,arguments);td.style.color=color;}};
 hot.render();
 }
 
 function bgColor(){
-const color=prompt("Masukkan warna background (contoh: yellow atau #ffff00)");
+const color=prompt("Masukkan warna background:");
 if(!color) return;
 const cell=getSelectedCell();
-cellMeta[cell.row+"-"+cell.col]={renderer:function(instance,td,row,col,prop,value){
-Handsontable.renderers.TextRenderer.apply(this,arguments);
-td.style.background=color;
-}};
+cellMeta[cell.row+"-"+cell.col]={renderer:function(i,td){Handsontable.renderers.TextRenderer.apply(this,arguments);td.style.background=color;}};
 hot.render();
 }
 
@@ -351,14 +262,13 @@ let w=window.open("");
 w.document.write("<html><body onload='window.print()'>"+excelPreview.innerHTML+"</body></html>");
 }
 
-/* ================= MODE ================= */
 function switchMode(mode){
 wordMode.classList.add('hidden');
 excelMode.classList.add('hidden');
 if(mode==='word') wordMode.classList.remove('hidden');
 if(mode==='excel') excelMode.classList.remove('hidden');
 }
-
 </script>
+
 </body>
 </html>
