@@ -33,26 +33,17 @@ button{padding:8px;border:none;border-radius:8px;font-weight:600;margin:4px;widt
 .danger{background:#dc2626;color:white}
 .gray{background:#6b7280;color:white}
 .hidden{display:none}
-.sheet-tabs{display:flex;margin-top:8px}
-.sheet-tabs button{flex:1;background:#e5e7eb}
-.sheet-tabs button.active{background:#2563eb;color:white}
-#printPreview{max-height:400px;overflow:auto}
-
 #previewImage{max-width:100%;display:none;touch-action:none}
 #imageContainer{position:relative;margin-top:10px}
-#selectionBox{
-position:absolute;
-border:2px dashed red;
-display:none;
-pointer-events:none;
-}
+#selectionBox{position:absolute;border:2px dashed red;display:none;pointer-events:none}
+.preview-box{border:1px solid #ddd;padding:10px;margin-top:10px}
 </style>
 </head>
 <body>
 
 <header>
 <h1>🚀 Smart OCR Lens Pro+</h1>
-<button onclick="saveProject()" class="success">💾 Simpan</button>
+<button onclick="saveWordProject()" class="success">💾 Simpan</button>
 </header>
 
 <div class="tabs">
@@ -63,8 +54,9 @@ pointer-events:none;
 
 <div class="container">
 
-<!-- WORD -->
+<!-- WORD MODE -->
 <div id="wordMode">
+
 <div class="card">
 <input type="file" accept="image/*" id="imageInput">
 <div id="imageContainer">
@@ -79,36 +71,44 @@ pointer-events:none;
 </div>
 
 <div class="card">
-<button class="success" onclick="previewDoc()">👁 Preview</button>
+<button class="success" onclick="previewWord()">👁 Preview</button>
 <button class="danger" onclick="downloadPDF()">⬇️ PDF</button>
-<button class="gray" onclick="printDoc()">🖨️ Print</button>
+<button class="gray" onclick="printWord()">🖨️ Print</button>
 <button class="primary" onclick="downloadDOCX()">⬇️ Word</button>
 </div>
+
+<div class="card hidden" id="wordPreviewCard">
+<h3>Preview Word</h3>
+<div id="wordPreview" class="preview-box"></div>
 </div>
 
-<!-- EXCEL -->
+</div>
+
+<!-- EXCEL MODE -->
 <div id="excelMode" class="hidden">
+
 <div class="card">
 <button onclick="addRow()" class="primary">➕ Baris</button>
 <button onclick="addCol()" class="primary">➕ Kolom</button>
 <button onclick="exportExcel()" class="success">⬇️ Export XLSX</button>
-<button onclick="showPrintPreview()" class="danger">👁 Preview Print</button>
+<button onclick="saveExcelProject()" class="success">💾 Simpan Excel</button>
+<button onclick="previewExcel()" class="danger">👁 Preview</button>
 <button onclick="printExcel()" class="gray">🖨️ Print</button>
 <button onclick="addSheet()" class="primary">➕ Sheet</button>
 </div>
 
 <div class="card">
 <div id="spreadsheet"></div>
-<div class="sheet-tabs" id="sheetTabs"></div>
 </div>
 
-<div class="card hidden" id="previewCard">
-<h3>Print Preview</h3>
-<div id="printPreview"></div>
-</div>
+<div class="card hidden" id="excelPreviewCard">
+<h3>Preview Excel</h3>
+<div id="excelPreview" class="preview-box"></div>
 </div>
 
-<!-- PROJECT -->
+</div>
+
+<!-- PROJECT MODE -->
 <div id="projectMode" class="hidden">
 <div class="card">
 <div id="projectList"></div>
@@ -119,10 +119,41 @@ pointer-events:none;
 
 <script>
 
-/* WORD */
+/* ================= WORD ================= */
 let quill=new Quill('#editor',{theme:'snow'});
 
-/* IMAGE SELECT SUPPORT TOUCH + MOUSE */
+function previewWord(){
+wordPreview.innerHTML=quill.root.innerHTML;
+wordPreviewCard.classList.remove('hidden');
+}
+
+function printWord(){
+let w=window.open("");
+w.document.write("<html><body onload='window.print()'>"+quill.root.innerHTML+"</body></html>");
+}
+
+async function downloadPDF(){
+const {jsPDF}=window.jspdf;
+let doc=new jsPDF();
+doc.html(quill.root.innerHTML,{callback:function(doc){doc.save("SmartOCR.pdf");}});
+}
+
+function downloadDOCX(){
+const {Document,Packer,Paragraph}=docx;
+let doc=new Document({
+sections:[{
+children:[new Paragraph(quill.getText())]
+}]
+});
+Packer.toBlob(doc).then(blob=>saveAs(blob,"SmartOCR.docx"));
+}
+
+function saveWordProject(){
+localStorage.setItem("wordProject",quill.root.innerHTML);
+alert("Word tersimpan!");
+}
+
+/* ================= OCR ================= */
 const imageInput=document.getElementById("imageInput");
 const previewImage=document.getElementById("previewImage");
 const imageContainer=document.getElementById("imageContainer");
@@ -190,87 +221,70 @@ imageContainer.addEventListener("touchmove",moveSelect);
 imageContainer.addEventListener("touchend",endSelect);
 
 async function scanSelected(){
-if(!previewImage.src){alert("Pilih gambar dulu!");return;}
-if(!selectedArea||selectedArea.width<5||selectedArea.height<5){alert("Pilih area dulu!");return;}
-
+if(!previewImage.src||!selectedArea) return alert("Pilih area dulu!");
 const canvas=document.createElement("canvas");
 const ctx=canvas.getContext("2d");
 const img=new Image();
 img.src=previewImage.src;
-
 img.onload=async()=>{
 const scaleX=img.naturalWidth/previewImage.clientWidth;
 const scaleY=img.naturalHeight/previewImage.clientHeight;
-
 canvas.width=selectedArea.width*scaleX;
 canvas.height=selectedArea.height*scaleY;
-
 ctx.drawImage(img,
 selectedArea.x*scaleX,
 selectedArea.y*scaleY,
 selectedArea.width*scaleX,
 selectedArea.height*scaleY,
 0,0,canvas.width,canvas.height);
-
 const result=await Tesseract.recognize(canvas,"ind+eng");
 quill.root.innerHTML+="<p>"+result.data.text+"</p>";
 };
 }
 
-/* EXCEL (ASLI TIDAK DIUBAH) */
-let sheets={},currentSheet="Sheet1",hot;
-function createEmptyData(){return Array.from({length:100},()=>Array(26).fill(null));}
+/* ================= EXCEL ================= */
+let hot;
 function initExcel(){
-if(hot) hot.destroy();
 hot=new Handsontable(document.getElementById('spreadsheet'),{
-data:sheets[currentSheet],
-rowHeaders:true,colHeaders:true,width:'100%',height:450,
-manualColumnResize:true,manualRowResize:true,
-contextMenu:true,filters:true,dropdownMenu:true,
-formulas:true,licenseKey:'non-commercial-and-evaluation'
+data:Handsontable.helper.createSpreadsheetData(50,20),
+rowHeaders:true,colHeaders:true,
+licenseKey:'non-commercial-and-evaluation'
 });
-renderSheetTabs();
 }
-function addSheet(){let name="Sheet"+(Object.keys(sheets).length+1);sheets[name]=createEmptyData();currentSheet=name;initExcel();}
-function switchSheet(name){currentSheet=name;initExcel();}
-function renderSheetTabs(){
-let html="";
-Object.keys(sheets).forEach(name=>{
-html+=`<button onclick="switchSheet('${name}')" class="${name===currentSheet?'active':''}">${name}</button>`;
-});
-sheetTabs.innerHTML=html;
-}
+setTimeout(initExcel,500);
+
 function addRow(){hot.alter('insert_row');}
 function addCol(){hot.alter('insert_col');}
-setTimeout(()=>{sheets["Sheet1"]=createEmptyData();initExcel();},500);
 
-/* MODE */
+function exportExcel(){
+let wb=XLSX.utils.book_new();
+let ws=XLSX.utils.aoa_to_sheet(hot.getData());
+XLSX.utils.book_append_sheet(wb,ws,"Sheet1");
+XLSX.writeFile(wb,"SmartOCR.xlsx");
+}
+
+function previewExcel(){
+excelPreview.innerHTML=hot.getData().map(r=>"<div>"+r.join(" | ")+"</div>").join("");
+excelPreviewCard.classList.remove('hidden');
+}
+
+function printExcel(){
+let w=window.open("");
+w.document.write("<html><body onload='window.print()'>"+excelPreview.innerHTML+"</body></html>");
+}
+
+function saveExcelProject(){
+localStorage.setItem("excelProject",JSON.stringify(hot.getData()));
+alert("Excel tersimpan!");
+}
+
+/* ================= MODE ================= */
 function switchMode(mode){
 wordMode.classList.add('hidden');
 excelMode.classList.add('hidden');
 projectMode.classList.add('hidden');
 if(mode==='word') wordMode.classList.remove('hidden');
 if(mode==='excel') excelMode.classList.remove('hidden');
-if(mode==='projects'){projectMode.classList.remove('hidden');loadProjects();}
-}
-
-/* PROJECT */
-function saveProject(){
-let projects=JSON.parse(localStorage.getItem("projects")||"[]");
-projects.unshift({date:new Date().toLocaleString(),content:quill.root.innerHTML});
-localStorage.setItem("projects",JSON.stringify(projects));
-alert("Tersimpan!");
-}
-function loadProjects(){
-let projects=JSON.parse(localStorage.getItem("projects")||"[]");
-let html="";
-projects.forEach((p,i)=>{html+=`<button onclick="openProject(${i})">${p.date}</button>`;});
-projectList.innerHTML=html||"Belum ada projek";
-}
-function openProject(i){
-let projects=JSON.parse(localStorage.getItem("projects"));
-quill.root.innerHTML=projects[i].content;
-switchMode('word');
 }
 
 </script>
