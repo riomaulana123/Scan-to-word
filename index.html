@@ -13,11 +13,6 @@
 <script src="https://cdn.jsdelivr.net/npm/handsontable@13.0.0/dist/handsontable.full.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@13.0.0/dist/handsontable.full.min.css"/>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
 <style>
 body{margin:0;font-family:system-ui;background:#f3f4f6}
 header{background:#111827;color:white;padding:14px;display:flex;justify-content:space-between;align-items:center}
@@ -33,18 +28,14 @@ button{padding:8px;border:none;border-radius:8px;font-weight:600;margin:4px;widt
 .danger{background:#dc2626;color:white}
 .gray{background:#6b7280;color:white}
 .hidden{display:none}
-.sheet-tabs{display:flex;margin-top:8px}
-.sheet-tabs button{flex:1;background:#e5e7eb}
-.sheet-tabs button.active{background:#2563eb;color:white}
-#printPreview{max-height:400px;overflow:auto}
 
-/* TAMBAHAN UNTUK OCR */
-#previewImage{max-width:100%;display:none}
+#previewImage{max-width:100%;display:none;touch-action:none}
 #imageContainer{position:relative;margin-top:10px}
 #selectionBox{
 position:absolute;
 border:2px dashed red;
 display:none;
+pointer-events:none;
 }
 </style>
 </head>
@@ -63,7 +54,6 @@ display:none;
 
 <div class="container">
 
-<!-- WORD MODE -->
 <div id="wordMode">
 <div class="card">
 <input type="file" accept="image/*" id="imageInput">
@@ -77,53 +67,16 @@ display:none;
 <div class="card">
 <div id="editor" style="height:400px;"></div>
 </div>
-
-<div class="card">
-<button class="success" onclick="previewDoc()">👁 Preview</button>
-<button class="danger" onclick="downloadPDF()">⬇️ PDF</button>
-<button class="gray" onclick="printDoc()">🖨️ Print</button>
-<button class="primary" onclick="downloadDOCX()">⬇️ Word</button>
-</div>
-</div>
-
-<!-- EXCEL MODE -->
-<div id="excelMode" class="hidden">
-<div class="card">
-<button onclick="addRow()" class="primary">➕ Baris</button>
-<button onclick="addCol()" class="primary">➕ Kolom</button>
-<button onclick="exportExcel()" class="success">⬇️ Export XLSX</button>
-<button onclick="showPrintPreview()" class="danger">👁 Preview Print</button>
-<button onclick="printExcel()" class="gray">🖨️ Print</button>
-<button onclick="addSheet()" class="primary">➕ Sheet</button>
-</div>
-
-<div class="card">
-<div id="spreadsheet"></div>
-<div class="sheet-tabs" id="sheetTabs"></div>
-</div>
-
-<div class="card hidden" id="previewCard">
-<h3>Print Preview</h3>
-<div id="printPreview"></div>
-</div>
-</div>
-
-<!-- PROJECT MODE -->
-<div id="projectMode" class="hidden">
-<div class="card">
-<div id="projectList"></div>
-</div>
 </div>
 
 </div>
 
 <script>
 
-/* ===== WORD ===== */
+/* QUILL */
 let quill=new Quill('#editor',{theme:'snow'});
 
-/* ===== IMAGE PREVIEW + SELECT AREA ===== */
-
+/* IMAGE + SELECT */
 const imageInput=document.getElementById("imageInput");
 const previewImage=document.getElementById("previewImage");
 const imageContainer=document.getElementById("imageContainer");
@@ -133,6 +86,7 @@ let startX,startY,endX,endY;
 let isSelecting=false;
 let selectedArea=null;
 
+/* tampilkan gambar */
 imageInput.addEventListener("change",function(e){
 const file=e.target.files[0];
 if(!file) return;
@@ -144,31 +98,51 @@ previewImage.style.display="block";
 reader.readAsDataURL(file);
 });
 
-imageContainer.addEventListener("mousedown",function(e){
+/* ambil posisi */
+function getPos(e){
+const rect=imageContainer.getBoundingClientRect();
+if(e.touches){
+return {
+x:e.touches[0].clientX-rect.left,
+y:e.touches[0].clientY-rect.top
+};
+}else{
+return {
+x:e.clientX-rect.left,
+y:e.clientY-rect.top
+};
+}
+}
+
+/* START */
+function startSelect(e){
 if(!previewImage.src) return;
 isSelecting=true;
 selectionBox.style.display="block";
-const rect=imageContainer.getBoundingClientRect();
-startX=e.clientX-rect.left;
-startY=e.clientY-rect.top;
+const pos=getPos(e);
+startX=pos.x;
+startY=pos.y;
 selectionBox.style.left=startX+"px";
 selectionBox.style.top=startY+"px";
 selectionBox.style.width="0px";
 selectionBox.style.height="0px";
-});
+}
 
-imageContainer.addEventListener("mousemove",function(e){
+/* MOVE */
+function moveSelect(e){
 if(!isSelecting) return;
-const rect=imageContainer.getBoundingClientRect();
-endX=e.clientX-rect.left;
-endY=e.clientY-rect.top;
+e.preventDefault();
+const pos=getPos(e);
+endX=pos.x;
+endY=pos.y;
 selectionBox.style.width=Math.abs(endX-startX)+"px";
 selectionBox.style.height=Math.abs(endY-startY)+"px";
 selectionBox.style.left=Math.min(startX,endX)+"px";
 selectionBox.style.top=Math.min(startY,endY)+"px";
-});
+}
 
-imageContainer.addEventListener("mouseup",function(){
+/* END */
+function endSelect(){
 isSelecting=false;
 selectedArea={
 x:parseInt(selectionBox.style.left),
@@ -176,8 +150,19 @@ y:parseInt(selectionBox.style.top),
 width:parseInt(selectionBox.style.width),
 height:parseInt(selectionBox.style.height)
 };
-});
+}
 
+/* EVENT DESKTOP */
+imageContainer.addEventListener("mousedown",startSelect);
+imageContainer.addEventListener("mousemove",moveSelect);
+imageContainer.addEventListener("mouseup",endSelect);
+
+/* EVENT HP */
+imageContainer.addEventListener("touchstart",startSelect);
+imageContainer.addEventListener("touchmove",moveSelect);
+imageContainer.addEventListener("touchend",endSelect);
+
+/* OCR */
 async function scanSelected(){
 if(!previewImage.src){alert("Pilih gambar dulu!");return;}
 if(!selectedArea||selectedArea.width<5||selectedArea.height<5){alert("Pilih area dulu!");return;}
@@ -190,6 +175,7 @@ img.src=previewImage.src;
 img.onload=async function(){
 const scaleX=img.naturalWidth/previewImage.clientWidth;
 const scaleY=img.naturalHeight/previewImage.clientHeight;
+
 canvas.width=selectedArea.width*scaleX;
 canvas.height=selectedArea.height*scaleY;
 
@@ -207,62 +193,6 @@ canvas.height
 const result=await Tesseract.recognize(canvas,"ind+eng");
 quill.root.innerHTML+="<p>"+result.data.text+"</p>";
 };
-}
-
-/* ===== EXCEL (TIDAK DIUBAH) ===== */
-let sheets={},currentSheet="Sheet1",hot;
-function createEmptyData(){return Array.from({length:100},()=>Array(26).fill(null));}
-function initExcel(){
-if(hot) hot.destroy();
-hot=new Handsontable(document.getElementById('spreadsheet'),{
-data:sheets[currentSheet],
-rowHeaders:true,colHeaders:true,width:'100%',height:450,
-manualColumnResize:true,manualRowResize:true,
-contextMenu:true,filters:true,dropdownMenu:true,
-formulas:true,licenseKey:'non-commercial-and-evaluation'
-});
-renderSheetTabs();
-}
-function addSheet(){let name="Sheet"+(Object.keys(sheets).length+1);sheets[name]=createEmptyData();currentSheet=name;initExcel();}
-function switchSheet(name){currentSheet=name;initExcel();}
-function renderSheetTabs(){
-let html="";
-Object.keys(sheets).forEach(name=>{
-html+=`<button onclick="switchSheet('${name}')" class="${name===currentSheet?'active':''}">${name}</button>`;
-});
-sheetTabs.innerHTML=html;
-}
-function addRow(){hot.alter('insert_row');}
-function addCol(){hot.alter('insert_col');}
-setTimeout(()=>{sheets["Sheet1"]=createEmptyData();initExcel();},500);
-
-/* MODE */
-function switchMode(mode){
-wordMode.classList.add('hidden');
-excelMode.classList.add('hidden');
-projectMode.classList.add('hidden');
-if(mode==='word') wordMode.classList.remove('hidden');
-if(mode==='excel') excelMode.classList.remove('hidden');
-if(mode==='projects'){projectMode.classList.remove('hidden');loadProjects();}
-}
-
-/* PROJECT */
-function saveProject(){
-let projects=JSON.parse(localStorage.getItem("projects")||"[]");
-projects.unshift({date:new Date().toLocaleString(),content:quill.root.innerHTML});
-localStorage.setItem("projects",JSON.stringify(projects));
-alert("Tersimpan!");
-}
-function loadProjects(){
-let projects=JSON.parse(localStorage.getItem("projects")||"[]");
-let html="";
-projects.forEach((p,i)=>{html+=`<button onclick="openProject(${i})">${p.date}</button>`;});
-projectList.innerHTML=html||"Belum ada projek";
-}
-function openProject(i){
-let projects=JSON.parse(localStorage.getItem("projects"));
-quill.root.innerHTML=projects[i].content;
-switchMode('word');
 }
 
 </script>
