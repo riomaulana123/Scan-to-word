@@ -3,271 +3,241 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Smart OCR Lens Pro+</title>
+<title>Excel Web Pro</title>
 
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-
-<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
-<script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
-
-<script src="https://cdn.jsdelivr.net/npm/handsontable@13.0.0/dist/handsontable.full.min.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@13.0.0/dist/handsontable.full.min.css"/>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jspreadsheet-ce@4.11.1/dist/jspreadsheet.css"/>
+<script src="https://cdn.jsdelivr.net/npm/jsuites@4.9.10/dist/jsuites.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspreadsheet-ce@4.11.1/dist/jspreadsheet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
 <style>
-body{margin:0;font-family:system-ui;background:#f3f4f6}
-header{background:#111827;color:white;padding:14px;display:flex;justify-content:space-between;align-items:center}
-header h1{font-size:18px;margin:0}
-.tabs{display:flex;background:white}
-.tabs button{flex:1;padding:12px;border:none;background:#e5e7eb;font-weight:600}
-.tabs button.active{background:#2563eb;color:white}
-.container{padding:12px}
-.card{background:white;padding:12px;border-radius:14px;box-shadow:0 6px 16px rgba(0,0,0,.07);margin-bottom:12px}
-button{padding:8px;border:none;border-radius:8px;font-weight:600;margin:4px;width:100%}
-.primary{background:#2563eb;color:white}
-.success{background:#16a34a;color:white}
-.danger{background:#dc2626;color:white}
-.gray{background:#6b7280;color:white}
-.hidden{display:none}
-#previewImage{max-width:100%;display:none;touch-action:none}
-#imageContainer{position:relative;margin-top:10px}
-#selectionBox{position:absolute;border:2px dashed red;display:none;pointer-events:none}
-.preview-box{border:1px solid #ddd;padding:10px;margin-top:10px}
-.print-paper{
-width:794px;
-min-height:1123px;
-background:white;
-margin:auto;
-padding:40px;
-box-shadow:0 0 15px rgba(0,0,0,.15);
+body{
+    margin:0;
+    font-family:Calibri, sans-serif;
+    background:#f3f3f3;
 }
 
-/* ===== EXCEL PRO UI ===== */
-.excel-header-bar{
-background:#f8fafc;
-padding:8px;
-border-radius:10px;
-margin-bottom:10px;
-box-shadow:0 3px 8px rgba(0,0,0,.05);
+.ribbon{
+    display:flex;
+    justify-content:space-between;
+    background:#e5e5e5;
+    padding:10px;
+    border-bottom:1px solid #ccc;
+    flex-wrap:wrap;
 }
-.formula-bar{
-display:flex;
-gap:8px;
-align-items:center;
-margin-top:8px;
+
+.ribbon button,
+.ribbon select,
+.ribbon input{
+    margin:3px;
+    padding:6px;
 }
-#cellNameBox{
-width:80px;
-padding:6px;
-background:#e5e7eb;
-border-radius:6px;
-text-align:center;
-font-weight:600;
+
+#spreadsheet{
+    margin:10px;
 }
-#formulaInput{
-flex:1;
-padding:6px;
-border-radius:6px;
-border:1px solid #ccc;
+
+.print-preview{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:white;
+    z-index:9999;
+    overflow:auto;
+}
+
+.print-controls{
+    padding:10px;
+    background:#eee;
+    border-bottom:1px solid #ccc;
+}
+
+#printArea{
+    margin:20px auto;
+    background:white;
+    box-shadow:0 0 10px rgba(0,0,0,0.2);
 }
 </style>
 </head>
+
 <body>
 
-<header>
-<h1>🚀 Smart OCR Lens Pro+</h1>
-<button onclick="saveWordProject()" class="success">💾 Simpan</button>
-</header>
+<div class="ribbon">
 
-<div class="tabs">
-<button onclick="switchMode('word')" class="active">📄 Word</button>
-<button onclick="switchMode('excel')">📊 Excel</button>
+<div>
+<button onclick="setBold()"><b>B</b></button>
+<button onclick="setItalic()"><i>I</i></button>
+<input type="color" onchange="setTextColor(this.value)">
+<input type="color" onchange="setBgColor(this.value)">
+<select onchange="setFontSize(this.value)">
+<option value="12">12</option>
+<option value="14">14</option>
+<option value="16">16</option>
+<option value="18">18</option>
+<option value="20">20</option>
+</select>
+<button onclick="mergeCell()">Merge</button>
 </div>
 
-<div class="container">
-
-<!-- WORD MODE -->
-<div id="wordMode">
-<div class="card">
-<input type="file" accept="image/*" id="imageInput">
-<div id="imageContainer">
-<img id="previewImage">
-<div id="selectionBox"></div>
-</div>
-<button class="primary" onclick="scanSelected()">🔍 Scan Area</button>
-</div>
-
-<div class="card">
-<div id="editor" style="height:400px;"></div>
-</div>
-
-<div class="card">
-<button class="success" onclick="previewWord()">👁 Preview</button>
-<button class="danger" onclick="downloadPDF()">⬇️ PDF</button>
-<button class="gray" onclick="printWord()">🖨️ Print</button>
-<button class="primary" onclick="downloadDOCX()">⬇️ Word</button>
-</div>
-
-<div class="card hidden" id="wordPreviewCard">
-<h3>Preview Word</h3>
-<div id="wordPreview" class="preview-box"></div>
-</div>
-</div>
-
-<!-- EXCEL MODE -->
-<div id="excelMode" class="hidden">
-
-<div class="excel-header-bar">
-
-<div style="display:flex;flex-wrap:wrap;gap:6px;">
-<button onclick="addRow()" class="primary">➕ Baris</button>
-<button onclick="addCol()" class="primary">➕ Kolom</button>
-<button onclick="makeBold()" class="success">B</button>
-<button onclick="alignLeft()" class="primary">Left</button>
-<button onclick="alignCenter()" class="primary">Center</button>
-<button onclick="alignRight()" class="primary">Right</button>
-<button onclick="textColor()" class="danger">Warna Teks</button>
-<button onclick="bgColor()" class="gray">Warna Tabel</button>
-<button onclick="exportExcel()" class="success">⬇️ Export XLSX</button>
-<button onclick="previewExcel()" class="danger">👁 Preview</button>
-<button onclick="printExcel()" class="gray">🖨️ Print</button>
-</div>
-
-<div class="formula-bar">
-<div id="cellNameBox">A1</div>
-<input type="text" id="formulaInput" placeholder="Ketik isi cell di sini...">
+<div>
+<button onclick="addSheet()">+ Sheet</button>
+<button onclick="exportExcel()">Export</button>
+<input type="file" id="importFile" hidden onchange="importExcel(event)">
+<button onclick="document.getElementById('importFile').click()">Import</button>
+<button onclick="openPrintPreview()">Print Preview</button>
 </div>
 
 </div>
 
-<div class="card">
 <div id="spreadsheet"></div>
+
+<div id="printPreview" class="print-preview">
+<div class="print-controls">
+<select id="paperSize">
+<option value="a4">A4</option>
+<option value="letter">Letter</option>
+<option value="f4">F4</option>
+</select>
+
+<select id="orientation">
+<option value="portrait">Portrait</option>
+<option value="landscape">Landscape</option>
+</select>
+
+<button onclick="printNow()">Print</button>
+<button onclick="closePrintPreview()">Close</button>
 </div>
 
-<div class="card hidden" id="excelPreviewCard">
-<h3>Preview Excel</h3>
-<div id="excelPreview" class="preview-box"></div>
-</div>
-
-</div>
-
+<div id="printArea"></div>
 </div>
 
 <script>
 
-/* WORD */
-let quill=new Quill('#editor',{theme:'snow'});
-function previewWord(){wordPreview.innerHTML="<div class='print-paper'>"+quill.root.innerHTML+"</div>";wordPreviewCard.classList.remove('hidden');}
-function printWord(){let w=window.open("");w.document.write("<html><body onload='window.print()'>"+quill.root.innerHTML+"</body></html>");}
-async function downloadPDF(){const {jsPDF}=window.jspdf;let doc=new jsPDF();doc.html(quill.root.innerHTML,{callback:function(doc){doc.save("SmartOCR.pdf");}});}
-function downloadDOCX(){const {Document,Packer,Paragraph}=docx;let doc=new Document({sections:[{children:[new Paragraph(quill.getText())]}]});Packer.toBlob(doc).then(blob=>saveAs(blob,"SmartOCR.docx"));}
-function saveWordProject(){localStorage.setItem("wordProject",quill.root.innerHTML);alert("Word tersimpan!");}
+let sheets=[];
+let currentSheet=0;
 
-/* EXCEL */
-let hot;
-let cellMeta={};
+function createSheet(name="Sheet1"){
+    const container=document.createElement("div");
+    document.getElementById("spreadsheet").appendChild(container);
 
-function initExcel(){
-hot=new Handsontable(document.getElementById('spreadsheet'),{
-data:Array.from({length:50},()=>Array(20).fill("")),
-rowHeaders:true,
-colHeaders:true,
-licenseKey:'non-commercial-and-evaluation',
-afterSelection:function(r,c){updateFormulaBar(r,c);},
-afterChange:function(){updateFormulaBarFromCell();},
-cells:function(row,col){return cellMeta[row+"-"+col]||{};}
-});
-}
-setTimeout(initExcel,500);
+    const sheet=jspreadsheet(container,{
+        minDimensions:[20,50],
+        tableOverflow:true,
+        tableHeight:"600px"
+    });
 
-function updateFormulaBar(row,col){
-let colLetter=String.fromCharCode(65+col);
-cellNameBox.innerText=colLetter+(row+1);
-formulaInput.value=hot.getDataAtCell(row,col)||"";
-}
-function updateFormulaBarFromCell(){
-const sel=hot.getSelected();
-if(!sel) return;
-updateFormulaBar(sel[0][0],sel[0][1]);
-}
-formulaInput.addEventListener("input",function(){
-const sel=hot.getSelected();
-if(!sel) return;
-hot.setDataAtCell(sel[0][0],sel[0][1],this.value);
-});
-
-function addRow(){hot.alter('insert_row');}
-function addCol(){hot.alter('insert_col');}
-
-function getSelectedCell(){
-const sel=hot.getSelected();
-if(!sel) return null;
-return {row:sel[0][0],col:sel[0][1]};
+    sheets.push(sheet);
 }
 
-function makeBold(){
-const cell=getSelectedCell(); if(!cell) return;
-cellMeta[cell.row+"-"+cell.col]={renderer:function(i,td){Handsontable.renderers.TextRenderer.apply(this,arguments);td.style.fontWeight="bold";}};
-hot.render();
+createSheet();
+
+function setBold(){
+    sheets[currentSheet].setStyle(
+        sheets[currentSheet].getSelected(),
+        'font-weight','bold'
+    );
 }
 
-function alignLeft(){setAlign("left");}
-function alignCenter(){setAlign("center");}
-function alignRight(){setAlign("right");}
-function setAlign(a){
-const cell=getSelectedCell(); if(!cell) return;
-cellMeta[cell.row+"-"+cell.col]={renderer:function(i,td){Handsontable.renderers.TextRenderer.apply(this,arguments);td.style.textAlign=a;}};
-hot.render();
+function setItalic(){
+    sheets[currentSheet].setStyle(
+        sheets[currentSheet].getSelected(),
+        'font-style','italic'
+    );
 }
 
-function textColor(){
-const color=prompt("Masukkan warna teks:");
-if(!color) return;
-const cell=getSelectedCell();
-cellMeta[cell.row+"-"+cell.col]={renderer:function(i,td){Handsontable.renderers.TextRenderer.apply(this,arguments);td.style.color=color;}};
-hot.render();
+function setTextColor(color){
+    sheets[currentSheet].setStyle(
+        sheets[currentSheet].getSelected(),
+        'color',color
+    );
 }
 
-function bgColor(){
-const color=prompt("Masukkan warna background:");
-if(!color) return;
-const cell=getSelectedCell();
-cellMeta[cell.row+"-"+cell.col]={renderer:function(i,td){Handsontable.renderers.TextRenderer.apply(this,arguments);td.style.background=color;}};
-hot.render();
+function setBgColor(color){
+    sheets[currentSheet].setStyle(
+        sheets[currentSheet].getSelected(),
+        'background-color',color
+    );
+}
+
+function setFontSize(size){
+    sheets[currentSheet].setStyle(
+        sheets[currentSheet].getSelected(),
+        'font-size',size+'px'
+    );
+}
+
+function mergeCell(){
+    sheets[currentSheet].setMerge(
+        sheets[currentSheet].getSelected()
+    );
+}
+
+function addSheet(){
+    createSheet("Sheet"+(sheets.length+1));
 }
 
 function exportExcel(){
-let wb=XLSX.utils.book_new();
-let ws=XLSX.utils.aoa_to_sheet(hot.getData());
-XLSX.utils.book_append_sheet(wb,ws,"Sheet1");
-XLSX.writeFile(wb,"SmartOCR.xlsx");
+    const data=sheets[currentSheet].getData();
+    const ws=XLSX.utils.aoa_to_sheet(data);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"Sheet1");
+    XLSX.writeFile(wb,"excel-web-pro.xlsx");
 }
 
-function previewExcel(){
-let table="<table border='1' style='border-collapse:collapse;width:100%'>";
-hot.getData().forEach(r=>{
-table+="<tr>"+r.map(c=>"<td style='padding:6px'>"+(c||"")+"</td>").join("")+"</tr>";
-});
-table+="</table>";
-excelPreview.innerHTML="<div class='print-paper'>"+table+"</div>";
-excelPreviewCard.classList.remove('hidden');
+function importExcel(e){
+    const file=e.target.files[0];
+    const reader=new FileReader();
+
+    reader.onload=function(evt){
+        const data=new Uint8Array(evt.target.result);
+        const workbook=XLSX.read(data,{type:'array'});
+        const sheet=workbook.Sheets[workbook.SheetNames[0]];
+        const json=XLSX.utils.sheet_to_json(sheet,{header:1});
+        sheets[currentSheet].setData(json);
+    };
+
+    reader.readAsArrayBuffer(file);
 }
 
-function printExcel(){
-let w=window.open("");
-w.document.write("<html><body onload='window.print()'>"+excelPreview.innerHTML+"</body></html>");
+function openPrintPreview(){
+    const area=document.getElementById("printArea");
+    area.innerHTML=document.querySelector(".jexcel_content").outerHTML;
+    document.getElementById("printPreview").style.display="block";
+    adjustPaper();
 }
 
-function switchMode(mode){
-wordMode.classList.add('hidden');
-excelMode.classList.add('hidden');
-if(mode==='word') wordMode.classList.remove('hidden');
-if(mode==='excel') excelMode.classList.remove('hidden');
+function closePrintPreview(){
+    document.getElementById("printPreview").style.display="none";
 }
+
+function adjustPaper(){
+    const size=document.getElementById("paperSize").value;
+    const orientation=document.getElementById("orientation").value;
+    const area=document.getElementById("printArea");
+
+    let width=794,height=1123; // A4 portrait
+
+    if(size==="letter"){width=816;height=1056;}
+    if(size==="f4"){width=816;height=1280;}
+
+    if(orientation==="landscape"){
+        [width,height]=[height,width];
+    }
+
+    area.style.width=width+"px";
+    area.style.height=height+"px";
+}
+
+document.getElementById("paperSize")
+.addEventListener("change",adjustPaper);
+
+document.getElementById("orientation")
+.addEventListener("change",adjustPaper);
+
+function printNow(){
+    window.print();
+}
+
 </script>
 
 </body>
