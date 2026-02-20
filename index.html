@@ -3,239 +3,158 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Excel Web Pro</title>
+<title>Excel Web Mobile Pro</title>
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jspreadsheet-ce@4.11.1/dist/jspreadsheet.css"/>
 <script src="https://cdn.jsdelivr.net/npm/jsuites@4.9.10/dist/jsuites.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspreadsheet-ce@4.11.1/dist/jspreadsheet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
 <style>
 body{
-    margin:0;
-    font-family:Calibri, sans-serif;
-    background:#f3f3f3;
+margin:0;
+font-family:Calibri, sans-serif;
+background:#f4f4f4;
+overflow:hidden;
 }
 
-.ribbon{
-    display:flex;
-    justify-content:space-between;
-    background:#e5e5e5;
-    padding:10px;
-    border-bottom:1px solid #ccc;
-    flex-wrap:wrap;
+/* Toolbar */
+.toolbar{
+display:flex;
+flex-wrap:wrap;
+gap:5px;
+padding:6px;
+background:#e6e6e6;
+border-bottom:1px solid #ccc;
 }
 
-.ribbon button,
-.ribbon select,
-.ribbon input{
-    margin:3px;
-    padding:6px;
+.toolbar button,
+.toolbar select,
+.toolbar input{
+padding:6px 8px;
+font-size:13px;
+border:1px solid #bbb;
+background:white;
+border-radius:4px;
 }
 
+/* Formula Bar */
+.formula-bar{
+display:flex;
+padding:5px;
+background:white;
+border-bottom:1px solid #ccc;
+}
+
+#formulaInput{
+flex:1;
+padding:5px;
+border:1px solid #ccc;
+}
+
+/* Spreadsheet area */
 #spreadsheet{
-    margin:10px;
+height:calc(100vh - 110px);
+overflow:auto;
 }
 
-.print-preview{
-    display:none;
-    position:fixed;
-    inset:0;
-    background:white;
-    z-index:9999;
-    overflow:auto;
+/* Make table full screen */
+.jexcel{
+width:100% !important;
 }
 
-.print-controls{
-    padding:10px;
-    background:#eee;
-    border-bottom:1px solid #ccc;
-}
-
-#printArea{
-    margin:20px auto;
-    background:white;
-    box-shadow:0 0 10px rgba(0,0,0,0.2);
-}
 </style>
 </head>
 
 <body>
 
-<div class="ribbon">
+<div class="toolbar">
 
-<div>
-<button onclick="setBold()"><b>B</b></button>
-<button onclick="setItalic()"><i>I</i></button>
-<input type="color" onchange="setTextColor(this.value)">
-<input type="color" onchange="setBgColor(this.value)">
-<select onchange="setFontSize(this.value)">
+<button onclick="formatStyle('font-weight','bold')"><b>B</b></button>
+<button onclick="formatStyle('font-style','italic')"><i>I</i></button>
+<button onclick="formatStyle('text-decoration','underline')"><u>U</u></button>
+
+<select onchange="formatStyle('font-size',this.value+'px')">
 <option value="12">12</option>
 <option value="14">14</option>
 <option value="16">16</option>
 <option value="18">18</option>
 <option value="20">20</option>
 </select>
+
+<input type="color" onchange="formatStyle('color',this.value)">
+<input type="color" onchange="formatStyle('background-color',this.value)">
+
+<button onclick="alignText('left')">Left</button>
+<button onclick="alignText('center')">Center</button>
+<button onclick="alignText('right')">Right</button>
+
 <button onclick="mergeCell()">Merge</button>
+
+<button onclick="insertRow()">+Row</button>
+<button onclick="insertColumn()">+Col</button>
+<button onclick="deleteRow()">-Row</button>
+<button onclick="deleteColumn()">-Col</button>
+
 </div>
 
-<div>
-<button onclick="addSheet()">+ Sheet</button>
-<button onclick="exportExcel()">Export</button>
-<input type="file" id="importFile" hidden onchange="importExcel(event)">
-<button onclick="document.getElementById('importFile').click()">Import</button>
-<button onclick="openPrintPreview()">Print Preview</button>
-</div>
-
+<div class="formula-bar">
+<input id="formulaInput" placeholder="Masukkan nilai atau rumus...">
 </div>
 
 <div id="spreadsheet"></div>
 
-<div id="printPreview" class="print-preview">
-<div class="print-controls">
-<select id="paperSize">
-<option value="a4">A4</option>
-<option value="letter">Letter</option>
-<option value="f4">F4</option>
-</select>
-
-<select id="orientation">
-<option value="portrait">Portrait</option>
-<option value="landscape">Landscape</option>
-</select>
-
-<button onclick="printNow()">Print</button>
-<button onclick="closePrintPreview()">Close</button>
-</div>
-
-<div id="printArea"></div>
-</div>
-
 <script>
 
-let sheets=[];
-let currentSheet=0;
+let sheet = jspreadsheet(document.getElementById('spreadsheet'),{
+minDimensions:[20,50],
+tableOverflow:true,
+tableHeight:"100%",
+allowInsertColumn:true,
+allowInsertRow:true,
+allowDeleteColumn:true,
+allowDeleteRow:true,
+columnDrag:true,
+rowDrag:true,
+onselection:function(instance,x1,y1){
+document.getElementById("formulaInput").value=
+instance.getValueFromCoords(x1,y1);
+}
+});
 
-function createSheet(name="Sheet1"){
-    const container=document.createElement("div");
-    document.getElementById("spreadsheet").appendChild(container);
+/* Formula input */
+document.getElementById("formulaInput").addEventListener("change",function(){
+let selected = sheet.getSelected();
+sheet.setValue(selected,this.value);
+});
 
-    const sheet=jspreadsheet(container,{
-        minDimensions:[20,50],
-        tableOverflow:true,
-        tableHeight:"600px"
-    });
-
-    sheets.push(sheet);
+/* Formatting */
+function formatStyle(property,value){
+sheet.setStyle(sheet.getSelected(),property,value);
 }
 
-createSheet();
-
-function setBold(){
-    sheets[currentSheet].setStyle(
-        sheets[currentSheet].getSelected(),
-        'font-weight','bold'
-    );
-}
-
-function setItalic(){
-    sheets[currentSheet].setStyle(
-        sheets[currentSheet].getSelected(),
-        'font-style','italic'
-    );
-}
-
-function setTextColor(color){
-    sheets[currentSheet].setStyle(
-        sheets[currentSheet].getSelected(),
-        'color',color
-    );
-}
-
-function setBgColor(color){
-    sheets[currentSheet].setStyle(
-        sheets[currentSheet].getSelected(),
-        'background-color',color
-    );
-}
-
-function setFontSize(size){
-    sheets[currentSheet].setStyle(
-        sheets[currentSheet].getSelected(),
-        'font-size',size+'px'
-    );
+function alignText(position){
+sheet.setStyle(sheet.getSelected(),'text-align',position);
 }
 
 function mergeCell(){
-    sheets[currentSheet].setMerge(
-        sheets[currentSheet].getSelected()
-    );
+sheet.setMerge(sheet.getSelected());
 }
 
-function addSheet(){
-    createSheet("Sheet"+(sheets.length+1));
+/* Row & Column */
+function insertRow(){
+sheet.insertRow();
 }
 
-function exportExcel(){
-    const data=sheets[currentSheet].getData();
-    const ws=XLSX.utils.aoa_to_sheet(data);
-    const wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb,ws,"Sheet1");
-    XLSX.writeFile(wb,"excel-web-pro.xlsx");
+function insertColumn(){
+sheet.insertColumn();
 }
 
-function importExcel(e){
-    const file=e.target.files[0];
-    const reader=new FileReader();
-
-    reader.onload=function(evt){
-        const data=new Uint8Array(evt.target.result);
-        const workbook=XLSX.read(data,{type:'array'});
-        const sheet=workbook.Sheets[workbook.SheetNames[0]];
-        const json=XLSX.utils.sheet_to_json(sheet,{header:1});
-        sheets[currentSheet].setData(json);
-    };
-
-    reader.readAsArrayBuffer(file);
+function deleteRow(){
+sheet.deleteRow();
 }
 
-function openPrintPreview(){
-    const area=document.getElementById("printArea");
-    area.innerHTML=document.querySelector(".jexcel_content").outerHTML;
-    document.getElementById("printPreview").style.display="block";
-    adjustPaper();
-}
-
-function closePrintPreview(){
-    document.getElementById("printPreview").style.display="none";
-}
-
-function adjustPaper(){
-    const size=document.getElementById("paperSize").value;
-    const orientation=document.getElementById("orientation").value;
-    const area=document.getElementById("printArea");
-
-    let width=794,height=1123; // A4 portrait
-
-    if(size==="letter"){width=816;height=1056;}
-    if(size==="f4"){width=816;height=1280;}
-
-    if(orientation==="landscape"){
-        [width,height]=[height,width];
-    }
-
-    area.style.width=width+"px";
-    area.style.height=height+"px";
-}
-
-document.getElementById("paperSize")
-.addEventListener("change",adjustPaper);
-
-document.getElementById("orientation")
-.addEventListener("change",adjustPaper);
-
-function printNow(){
-    window.print();
+function deleteColumn(){
+sheet.deleteColumn();
 }
 
 </script>
